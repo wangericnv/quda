@@ -71,7 +71,8 @@ namespace quda {
     }
   };
 
-  void setDiracParam(DiracParam &diracParam, QudaInvertParam *inv_param, bool pc);
+    void setDiracParam(DiracParam &diracParam, QudaInvertParam *inv_param, const bool pc,
+cudaGaugeField *gauge=nullptr, cudaGaugeField *fatGauge=nullptr, cudaGaugeField *longGauge=nullptr, cudaCloverField *clover=nullptr);
   void setDiracSloppyParam(DiracParam &diracParam, QudaInvertParam *inv_param, bool pc);
 
   // forward declarations
