@@ -41,7 +41,7 @@ char *getPrintBuffer();
 
 #define printfZero(...)	do {						\
     if (zeroThread) printf(__VA_ARGS__);				\
-  } while (0)
+  } while (true)
 
 
 #ifdef MULTI_GPU
@@ -53,7 +53,7 @@ char *getPrintBuffer();
     fprintf(getOutputFile(), "%s", getPrintBuffer());  \
     fflush(getOutputFile());                           \
   }                                                    \
-} while (0)
+} while (true)
 
 #define errorQuda(...) do {                                                  \
   fprintf(getOutputFile(), "%sERROR: ", getOutputPrefix());                  \
@@ -65,7 +65,7 @@ char *getPrintBuffer();
 	  getLastTuneKey().volume, getLastTuneKey().aux);	             \
   fflush(getOutputFile());                                                   \
   comm_abort(1);                                                             \
-} while (0)
+} while (true)
 
 #define warningQuda(...) do {                                   \
   if (getVerbosity() > QUDA_SILENT) {				\
@@ -77,7 +77,7 @@ char *getPrintBuffer();
       fflush(getOutputFile());						\
     }									\
   }									\
-} while (0)
+} while (true)
 
 #else
 
@@ -85,7 +85,7 @@ char *getPrintBuffer();
   fprintf(getOutputFile(), "%s", getOutputPrefix()); \
   fprintf(getOutputFile(), __VA_ARGS__);             \
   fflush(getOutputFile());                           \
-} while (0)
+} while (true)
 
 #define errorQuda(...) do {						     \
   fprintf(getOutputFile(), "%sERROR: ", getOutputPrefix());		     \
@@ -96,7 +96,7 @@ char *getPrintBuffer();
 	  getOutputPrefix(), getLastTuneKey().name,			     \
 	  getLastTuneKey().volume, getLastTuneKey().aux);		     \
   comm_abort(1);								     \
-} while (0)
+} while (true)
 
 #define warningQuda(...) do {                                 \
   if (getVerbosity() > QUDA_SILENT) {			      \
@@ -105,7 +105,7 @@ char *getPrintBuffer();
     fprintf(getOutputFile(), "\n");                             \
     fflush(getOutputFile());                                    \
   }								\
-} while (0)
+} while (true)
 
 #endif // MULTI_GPU
 
@@ -114,7 +114,7 @@ char *getPrintBuffer();
   cudaError_t error = cudaGetLastError();              \
   if (error != cudaSuccess)                            \
     errorQuda("(CUDA) %s", cudaGetErrorString(error)); \
-} while (0)
+} while (true)
 
 
 #ifdef HOST_DEBUG
@@ -122,7 +122,7 @@ char *getPrintBuffer();
 #define checkCudaError() do {  \
   cudaDeviceSynchronize();     \
   checkCudaErrorNoSync();      \
-} while (0)
+} while (true)
 
 #else
 
