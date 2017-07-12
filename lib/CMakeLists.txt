@@ -143,9 +143,6 @@ target_link_libraries(quda ${CUDA_CUDA_LIBRARY})
 ADD_CUSTOM_COMMAND(TARGET quda POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}/include)
 
 
-if(COMP_CAP)
-  set(FOO_STRING "foo")
-endif()
 configure_file(${CMAKE_SOURCE_DIR}/include/qudaconfigure.h.in ${CMAKE_BINARY_DIR}/include/qudaconfigure.h @ONLY)
 
 

@@ -7,7 +7,7 @@
  *
  */
 
-#include <qudaconfigure.h>
+//#include <qudaconfigure.h>
 #include <enum_quda.h>
 #include <stdio.h> /* for FILE */
 #include <quda_constants.h>
