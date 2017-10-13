@@ -38,7 +38,7 @@ set (QUDA_OBJS
   copy_color_spinor_mg_ds.cu copy_color_spinor_mg_sd.cu
   copy_color_spinor_mg_ss.cu copy_gauge_double.cu copy_gauge_single.cu
   copy_gauge_half.cu copy_gauge.cu copy_gauge_mg.cu copy_clover.cu
-  staggered_oprod.cu staggered_oprod_new.cu clover_trace_quda.cu ks_force_quda.cu
+  staggered_oprod.cu clover_trace_quda.cu ks_force_quda.cu
   hisq_paths_force_quda.cu fermion_force_quda.cu
   unitarize_force_quda.cu unitarize_links_quda.cu milc_interface.cpp
   extended_color_spinor_utilities.cu eig_lanczos_quda.cpp
@@ -110,11 +110,11 @@ if(QUDA_QIO)
 endif()
 
 if(QUDA_QDPJIT)
-  target_link_libraries(quda ${QDP_LDFLAGS} ${QDP_LIB} ${QDP_LIBS} ${QIO_LIB} ${LIME_LIB} ${QMP_LIB} ${MPI_CXX_LIBRARIES})
+  target_link_libraries(quda ${QDP_LDFLAGS} ${QDP_LIB} ${QDP_LIBS} ${QIO_LIB} ${LIME_LIB} ${QUDA_QMP_LDFLAGS} ${QMP_LIB} ${MPI_CXX_LIBRARIES})
 endif()
 
 if(QUDA_QMP)
-  target_link_libraries(quda ${QMP_LIB} ${MPI_CXX_LIBRARIES})
+  target_link_libraries(quda ${QUDA_QMP_LDFLAGS} ${QUDA_QMP_LIBS} ${MPI_CXX_LIBRARIES})
 endif()
 
 if(QUDA_MPI)
@@ -138,6 +138,12 @@ endif()
 # So we need to find the CUDA_CUDA_LIBRARY (driver api) or the stub version
 find_library(CUDA_CUDA_LIBRARY cuda HINTS ${CUDA_TOOLKIT_ROOT_DIR}/lib/ ${CUDA_TOOLKIT_ROOT_DIR}/lib/stubs)
 target_link_libraries(quda ${CUDA_CUDA_LIBRARY})
+
+# if we did not find Eigen but downloaded it we need to add it as dependency so the download is done first
+if (QUDA_DOWNLOAD_EIGEN)
+  add_dependencies(quda_cpp Eigen)
+  add_dependencies(quda Eigen)
+endif()
 
 # until we define an install step copy the include directory to the build directory
 ADD_CUSTOM_COMMAND(TARGET quda POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}/include)
