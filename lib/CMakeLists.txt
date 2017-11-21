@@ -145,8 +145,8 @@ endif()
 # until we define an install step copy the include directory to the build directory
 ADD_CUSTOM_COMMAND(TARGET quda POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}/include)
 
-
-configure_file(${CMAKE_SOURCE_DIR}/include/qudaconfigure.h.in ${CMAKE_BINARY_DIR}/include/qudaconfigure.h @ONLY)
+# add a configured file 
+configure_file(${CMAKE_SOURCE_DIR}/include/quda_config.h.in ${CMAKE_BINARY_DIR}/include/quda_config.h @ONLY)
 
 
 # some hackery to prevent having old shared / static builds of quda messing with the current build

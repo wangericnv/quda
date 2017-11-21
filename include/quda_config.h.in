@@ -29,6 +29,8 @@
 
 #define __COMPUTE_CAPABILITY__ @COMP_CAP@
 
+
+
 // currently used ifdefs 
 #cmakedefine ARPACK_LIB
 #cmakedefine DIRECT_ACCESS_BLAS
