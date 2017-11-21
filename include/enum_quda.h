@@ -42,6 +42,7 @@ extern "C" {
     QUDA_QDPJIT_GAUGE_ORDER, // expect *gauge[mu], even-odd, complex-column-row-spacetime
     QUDA_CPS_WILSON_GAUGE_ORDER, // expect *gauge, even-odd, mu, spacetime, column-row color
     QUDA_MILC_GAUGE_ORDER, // expect *gauge, even-odd, mu, spacetime, row-column order
+    QUDA_MILC_SITE_GAUGE_ORDER, // packed into MILC site AoS [even-odd][spacetime] array, and [dir][row][col] inside
     QUDA_BQCD_GAUGE_ORDER, // expect *gauge, mu, even-odd, spacetime+halos, column-row order
     QUDA_TIFR_GAUGE_ORDER, // expect *gauge, mu, even-odd, spacetime, column-row order
     QUDA_TIFR_PADDED_GAUGE_ORDER, // expect *gauge, mu, parity, t, z+halo, y, x/2, column-row order
@@ -92,6 +93,7 @@ extern "C" {
     QUDA_TWISTED_MASS_DSLASH,
     QUDA_TWISTED_CLOVER_DSLASH,
     QUDA_LAPLACE_DSLASH,
+    QUDA_COVDEV_DSLASH,
     QUDA_INVALID_DSLASH = QUDA_INVALID_ENUM
   } QudaDslashType;
 
@@ -300,6 +302,7 @@ extern "C" {
     QUDA_COARSEPC_DIRAC,
     QUDA_GAUGE_LAPLACE_DIRAC,
     QUDA_GAUGE_LAPLACEPC_DIRAC,
+    QUDA_GAUGE_COVDEV_DIRAC,
     QUDA_INVALID_DIRAC = QUDA_INVALID_ENUM
   } QudaDiracType;
 

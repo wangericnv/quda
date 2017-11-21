@@ -2,7 +2,7 @@
 include_directories(.)
 
 #build a common library for all test utilities
-set(QUDA_TEST_COMMON gtest-all.cc test_util.cpp misc.cpp)
+set(QUDA_TEST_COMMON gtest-all.cc test_util.cpp misc.cpp face_gauge.cpp)
 cuda_add_library(quda_test STATIC ${QUDA_TEST_COMMON})
 
 set(TEST_LIBS quda quda_test )
@@ -82,6 +82,10 @@ QUDA_CHECKBUILDTEST(pack_test QUDA_BUILD_ALL_TESTS)
 cuda_add_executable(blas_test blas_test.cu)
 target_link_libraries(blas_test ${TEST_LIBS})
 QUDA_CHECKBUILDTEST(blas_test QUDA_BUILD_ALL_TESTS)
+
+cuda_add_executable(covdev_test covdev_test.cpp  covdev_reference.cpp)
+target_link_libraries(covdev_test ${TEST_LIBS})
+QUDA_CHECKBUILDTEST(covdev_test QUDA_BUILD_ALL_TESTS)
 
 if(QUDA_LINK_ASQTAD OR QUDA_LINK_HISQ)
   cuda_add_executable(llfat_test llfat_test.cpp llfat_reference.cpp)
