@@ -46,22 +46,18 @@ namespace quda {
     int_fastdiv swizzle;
     int sites_per_block;
 
-    PackArg(void **ghost, const ColorSpinorField &in, int nFace, bool dagger, int parity,
-            int threads, double twist_a, double twist_b, double twist_c) :
-        in(in, nFace, nullptr, nullptr, reinterpret_cast<Float **>(ghost)),
-        nFace(nFace),
-        dagger(dagger),
-        parity(parity),
-        nParity(in.SiteSubset()),
-        threads(threads),
-        pc_type(in.PCType()),
-        dc(in.getDslashConstant()),
-        twist_a(twist_a),
-        twist_b(twist_b),
-        twist_c(twist_c),
-        twist((twist_a != 0.0 && twist_b != 0.0) ? (twist_c != 0.0 ? 2 : 1) : 0)
-    {
-      if (!in.isNative()) errorQuda("Unsupported field order colorspinor=%d\n", in.FieldOrder());
+    PackArg(void **ghost, const ColorSpinorField &in, int nFace, bool dagger,
+            int parity, int threads, double twist_a, double twist_b,
+            double twist_c)
+        : in(in, nFace, nullptr, nullptr, reinterpret_cast<Float **>(ghost)),
+          nFace(nFace), dagger(dagger), parity(parity),
+          nParity(in.SiteSubset()), threads(threads), pc_type(in.PCType()),
+          dc(in.getDslashConstant()), twist_a(twist_a), twist_b(twist_b),
+          twist_c(twist_c),
+          twist((twist_a != 0.0 && twist_b != 0.0) ? (twist_c != 0.0 ? 2 : 1)
+                                                   : 0) {
+      if (!in.isNative())
+        errorQuda("Unsupported field order colorspinor=%d\n", in.FieldOrder());
 
       int d = 0;
       int prev = -1; // previous dimension that was partitioned
@@ -77,7 +73,6 @@ namespace quda {
       }
       active_dims = d;
     }
-
   };
 
   template <bool dagger, int twist, int dim, QudaPCType pc, typename Arg>
@@ -115,11 +110,13 @@ namespace quda {
       constexpr int proj_dir = dagger ? +1 : -1;
       Vector f = arg.in(idx+s*arg.dc.volume_4d_cb, spinor_parity);
       if (twist==1) {
-        f = arg.twist_a * (f + arg.twist_b*f.igamma(4));
+        f = arg.twist_a * (f + arg.twist_b * f.igamma(4));
       } else if (twist==2) {
         Vector f1 = arg.in(idx+(1-s)*arg.dc.volume_4d_cb, spinor_parity); // load other flavor
-        if (s==0) f = arg.twist_a * (f + arg.twist_b*f.igamma(4) + arg.twist_c*f1);
-        else      f = arg.twist_a * (f - arg.twist_b*f.igamma(4) + arg.twist_c*f1);
+        if (s == 0)
+          f = arg.twist_a * (f + arg.twist_b * f.igamma(4) + arg.twist_c * f1);
+        else
+          f = arg.twist_a * (f - arg.twist_b * f.igamma(4) + arg.twist_c * f1);
       }
       in.Ghost(dim, 0, ghost_idx+s*arg.dc.ghostFaceCB[dim], spinor_parity) = f.project(dim, proj_dir);
     } else { // forwards
@@ -128,13 +125,16 @@ namespace quda {
       constexpr int proj_dir = dagger ? -1 : +1;
       Vector f = arg.in(idx+s*arg.dc.volume_4d_cb, spinor_parity);
       if (twist==1) {
-        f = arg.twist_a * (f + arg.twist_b*f.igamma(4));
+        f = arg.twist_a * (f + arg.twist_b * f.igamma(4));
       } else if (twist==2) {
         Vector f1 = arg.in(idx+(1-s)*arg.dc.volume_4d_cb, spinor_parity); // load other flavor
-        if (s==0) f = arg.twist_a * (f + arg.twist_b*f.igamma(4) + arg.twist_c*f1);
-        else      f = arg.twist_a * (f - arg.twist_b*f.igamma(4) + arg.twist_c*f1);
+        if (s == 0)
+          f = arg.twist_a * (f + arg.twist_b * f.igamma(4) + arg.twist_c * f1);
+        else
+          f = arg.twist_a * (f - arg.twist_b * f.igamma(4) + arg.twist_c * f1);
       }
-      in.Ghost(dim, 1, ghost_idx+s*arg.dc.ghostFaceCB[dim], spinor_parity) = f.project(dim, proj_dir);
+      in.Ghost(dim, 1, ghost_idx + s * arg.dc.ghostFaceCB[dim], spinor_parity) =
+          f.project(dim, proj_dir);
     }
   }
 
@@ -209,8 +209,7 @@ namespace quda {
   }
 
   template <bool dagger, int twist, QudaPCType pc, typename Arg>
-  __device__ void packShmem(Arg &arg, int parity)
-  {
+  __device__ void packShmem(Arg &arg, int parity) {
     // (active_dims * 2 + dir) * blocks_per_dir + local_block_idx
     int local_block_idx = blockIdx.x % arg.blocks_per_dir;
     int dim_dir = blockIdx.x / arg.blocks_per_dir;
@@ -266,15 +265,15 @@ namespace quda {
 
   template <bool dagger, int twist, QudaPCType pc, typename Arg>
   __global__ void packShmemKernel(Arg arg) {
-    // this is the parity used for load/store, but we use arg.parity for index mapping
-    int parity = (arg.nParity == 2) ? blockDim.z*blockIdx.z + threadIdx.z : arg.parity;
+    // this is the parity used for load/store, but we use arg.parity for index
+    // mapping
+    int parity =
+        (arg.nParity == 2) ? blockDim.z * blockIdx.z + threadIdx.z : arg.parity;
 
-    packShmem<dagger,twist,pc>(arg, parity);
+    packShmem<dagger, twist, pc>(arg, parity);
   }
 
-  template <typename Arg>
-  __global__ void packStaggeredKernel(Arg arg)
-  {
+  template <typename Arg> __global__ void packStaggeredKernel(Arg arg) {
     const int sites_per_block = arg.sites_per_block;
     int local_tid = threadIdx.x;
     int tid = sites_per_block * blockIdx.x + local_tid;

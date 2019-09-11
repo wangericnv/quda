@@ -783,20 +783,20 @@ namespace quda {
      */
     template <typename Float, int Ns, int Nc, int N, bool spin_project=false, bool huge_alloc=false>
       struct FloatNOrder {
-        using Accessor = FloatNOrder<Float,Ns,Nc,N,spin_project,huge_alloc>;
-        typedef typename mapper<Float>::type RegType;
-        typedef typename VectorType<Float,N>::type Vector;
-        typedef typename VectorType<RegType,N>::type RegVector;
-        typedef typename AllocType<huge_alloc>::type AllocInt;
-        typedef float norm_type;
-        static constexpr int length = 2 * Ns * Nc;
-        static constexpr int length_ghost = spin_project ? length/2 : length;
-        static constexpr int M = length / N;
-        static constexpr int M_ghost = spin_project ? M/2 : M;
-        Float *field;
-        norm_type *norm;
-        const AllocInt offset; // offset can be 32-bit or 64-bit
-        const AllocInt norm_offset;
+      using Accessor = FloatNOrder<Float, Ns, Nc, N, spin_project, huge_alloc>;
+      typedef typename mapper<Float>::type RegType;
+      typedef typename VectorType<Float, N>::type Vector;
+      typedef typename VectorType<RegType, N>::type RegVector;
+      typedef typename AllocType<huge_alloc>::type AllocInt;
+      typedef float norm_type;
+      static constexpr int length = 2 * Ns * Nc;
+      static constexpr int length_ghost = spin_project ? length / 2 : length;
+      static constexpr int M = length / N;
+      static constexpr int M_ghost = spin_project ? M / 2 : M;
+      Float *field;
+      norm_type *norm;
+      const AllocInt offset; // offset can be 32-bit or 64-bit
+      const AllocInt norm_offset;
 #ifdef USE_TEXTURE_OBJECTS
         typedef typename TexVectorType<RegType,N>::type TexVector;
         cudaTextureObject_t tex;
@@ -934,9 +934,9 @@ namespace quda {
      @return Instance of a colorspinor_wrapper that curries in access to
      this field at the above coordinates.
   */
-  __device__ __host__ inline colorspinor_wrapper<RegType,Accessor> operator()(int x_cb, int parity)
-  {
-    return colorspinor_wrapper<RegType,Accessor>(*this, x_cb, parity);
+  __device__ __host__ inline colorspinor_wrapper<RegType, Accessor>
+  operator()(int x_cb, int parity) {
+    return colorspinor_wrapper<RegType, Accessor>(*this, x_cb, parity);
   }
 
   /**
@@ -948,11 +948,11 @@ namespace quda {
      @return Instance of a colorspinor_wrapper that curries in access to
      this field at the above coordinates.
   */
-  __device__ __host__ inline const colorspinor_wrapper<RegType,Accessor> operator()(int x_cb, int parity) const
-  {
-    return colorspinor_wrapper<RegType,Accessor>(const_cast<Accessor&>(*this), x_cb, parity);
+  __device__ __host__ inline const colorspinor_wrapper<RegType, Accessor>
+  operator()(int x_cb, int parity) const {
+    return colorspinor_wrapper<RegType, Accessor>(const_cast<Accessor &>(*this),
+                                                  x_cb, parity);
   }
-
 
   __device__ __host__ inline void loadGhost(RegType v[length_ghost], int x, int dim, int dir, int parity=0) const {
 
@@ -1031,9 +1031,10 @@ namespace quda {
      @return Instance of a colorspinor_ghost_wrapper that curries in access to
      this field at the above coordinates.
   */
-  __device__ __host__ inline colorspinor_ghost_wrapper<RegType,Accessor> Ghost(int dim, int dir, int ghost_idx, int parity)
-  {
-    return colorspinor_ghost_wrapper<RegType,Accessor>(*this, dim, dir, ghost_idx, parity);
+  __device__ __host__ inline colorspinor_ghost_wrapper<RegType, Accessor>
+  Ghost(int dim, int dir, int ghost_idx, int parity) {
+    return colorspinor_ghost_wrapper<RegType, Accessor>(*this, dim, dir,
+                                                        ghost_idx, parity);
   }
 
   /**
@@ -1042,14 +1043,16 @@ namespace quda {
      overload various operators for manipulating at the site
      level interms of matrix operations.
      @param[in] dim Dimensions of the ghost we are requesting
-     @param[in] ghost_idx Checkerboarded space-time ghost index we are requesting
+     @param[in] ghost_idx Checkerboarded space-time ghost index we are
+     requesting
      @param[in] parity Parity we are requesting
      @return Instance of a colorspinor_ghost+wrapper that curries in access to
      this field at the above coordinates.
   */
-  __device__ __host__ inline const colorspinor_ghost_wrapper<RegType,Accessor> Ghost(int dim, int dir, int ghost_idx, int parity) const
-  {
-    return colorspinor_ghost_wrapper<RegType,Accessor>(const_cast<Accessor&>(*this), dim, dir, ghost_idx, parity);
+  __device__ __host__ inline const colorspinor_ghost_wrapper<RegType, Accessor>
+  Ghost(int dim, int dir, int ghost_idx, int parity) const {
+    return colorspinor_ghost_wrapper<RegType, Accessor>(
+        const_cast<Accessor &>(*this), dim, dir, ghost_idx, parity);
   }
 
   /**

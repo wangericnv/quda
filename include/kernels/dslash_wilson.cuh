@@ -1,10 +1,9 @@
 #pragma once
 
-#include <dslash_helper.cuh>
-#include <color_spinor_field_order.h>
-#include <gauge_field_order.h>
 #include <color_spinor.h>
+#include <color_spinor_field_order.h>
 #include <dslash_helper.cuh>
+#include <gauge_field_order.h>
 #include <index_helper.cuh>
 #include <kernels/dslash_pack.cuh> // for the packing kernel
 
@@ -13,40 +12,40 @@ namespace quda {
   /**
      @brief Parameter structure for driving the Wilson operator
    */
-  template <typename Float, int nColor_, QudaReconstructType reconstruct_>
-  struct WilsonArg : DslashArg<Float> {
-    static constexpr int nColor = nColor_;
-    static constexpr int nSpin = 4;
-    static constexpr bool spin_project = true;
-    static constexpr bool spinor_direct_load = false; // false means texture load
-    typedef typename colorspinor_mapper<Float,nSpin,nColor,spin_project,spinor_direct_load>::type F;
+template <typename Float, int nColor_, QudaReconstructType reconstruct_>
+struct WilsonArg : DslashArg<Float> {
+  static constexpr int nColor = nColor_;
+  static constexpr int nSpin = 4;
+  static constexpr bool spin_project = true;
+  static constexpr bool spinor_direct_load = false; // false means texture load
+  typedef typename colorspinor_mapper<Float, nSpin, nColor, spin_project,
+                                      spinor_direct_load>::type F;
 
-    static constexpr QudaReconstructType reconstruct = reconstruct_;
-    static constexpr bool gauge_direct_load = false; // false means texture load
-    static constexpr QudaGhostExchange ghost = QUDA_GHOST_EXCHANGE_PAD;
-    typedef typename gauge_mapper<Float,reconstruct,18,QUDA_STAGGERED_PHASE_NO,gauge_direct_load,ghost>::type G;
+  static constexpr QudaReconstructType reconstruct = reconstruct_;
+  static constexpr bool gauge_direct_load = false; // false means texture load
+  static constexpr QudaGhostExchange ghost = QUDA_GHOST_EXCHANGE_PAD;
+  typedef typename gauge_mapper<Float, reconstruct, 18, QUDA_STAGGERED_PHASE_NO,
+                                gauge_direct_load, ghost>::type G;
 
-    typedef typename mapper<Float>::type real;
+  typedef typename mapper<Float>::type real;
 
-    F out;                /** output vector field */
-    const F in;           /** input vector field */
-    const F x;            /** input vector when doing xpay */
-    const G U;            /** the gauge field */
-    const real a;         /** xpay scale facotor - can be -kappa or -kappa^2 */
+  F out;        /** output vector field */
+  const F in;   /** input vector field */
+  const F x;    /** input vector when doing xpay */
+  const G U;    /** the gauge field */
+  const real a; /** xpay scale facotor - can be -kappa or -kappa^2 */
 
-    WilsonArg(ColorSpinorField &out, const ColorSpinorField &in, const GaugeField &U,
-              double a, const ColorSpinorField &x, int parity, bool dagger, const int *comm_override) :
-      DslashArg<Float>(in, U, parity, dagger, a != 0.0 ? true : false, 1, comm_override),
-      out(out),
-      in(in),
-      U(U),
-      x(x),
-      a(a)
-    {
-      if (!out.isNative() || !x.isNative() || !in.isNative() || !U.isNative())
-        errorQuda("Unsupported field order colorspinor=%d gauge=%d combination\n", in.FieldOrder(), U.FieldOrder());
-    }
-  };
+  WilsonArg(ColorSpinorField &out, const ColorSpinorField &in,
+            const GaugeField &U, double a, const ColorSpinorField &x,
+            int parity, bool dagger, const int *comm_override)
+      : DslashArg<Float>(in, U, parity, dagger, a != 0.0 ? true : false, 1,
+                         comm_override),
+        out(out), in(in), U(U), x(x), a(a) {
+    if (!out.isNative() || !x.isNative() || !in.isNative() || !U.isNative())
+      errorQuda("Unsupported field order colorspinor=%d gauge=%d combination\n",
+                in.FieldOrder(), U.FieldOrder());
+  }
+};
 
   /**
      @brief Applies the off-diagonal part of the Wilson operator
@@ -179,29 +178,38 @@ namespace quda {
   template <typename Float, int nDim, int nColor, int nParity, bool dagger, bool xpay, KernelType kernel_type, typename Arg>
   __global__ void wilsonGPU(Arg arg)
   {
-    const int dslash_block_offset = (kernel_type == INTERIOR_KERNEL ? arg.pack_blocks : 0);
+    const int dslash_block_offset =
+        (kernel_type == INTERIOR_KERNEL ? arg.pack_blocks : 0);
 
     if (kernel_type == INTERIOR_KERNEL && blockIdx.x < arg.pack_blocks) {
       // first few blocks do packing kernel
       // for full fields set parity from z thread index else use arg setting
-      int parity = nParity == 2 ? blockDim.z*blockIdx.z + threadIdx.z : arg.parity;
+      int parity =
+          nParity == 2 ? blockDim.z * blockIdx.z + threadIdx.z : arg.parity;
 
-      packShmem<dagger,0,QUDA_4D_PC>(arg, 1-parity); // flip parity since pack is on input
-    } else { // do dslash
+      packShmem<dagger, 0, QUDA_4D_PC>(
+          arg, 1 - parity); // flip parity since pack is on input
+    } else {                // do dslash
 
-      int x_cb = (blockIdx.x-dslash_block_offset)*blockDim.x + threadIdx.x;
-      if (x_cb >= arg.threads) return;
+      int x_cb = (blockIdx.x - dslash_block_offset) * blockDim.x + threadIdx.x;
+      if (x_cb >= arg.threads)
+        return;
 
       // for full fields set parity from z thread index else use arg setting
-      int parity = nParity == 2 ? blockDim.z*blockIdx.z + threadIdx.z : arg.parity;
+      int parity =
+          nParity == 2 ? blockDim.z * blockIdx.z + threadIdx.z : arg.parity;
 
-      switch(parity) {
-      case 0: wilson<Float,nDim,nColor,nParity,dagger,xpay,kernel_type>(arg, x_cb, 0, 0); break;
-      case 1: wilson<Float,nDim,nColor,nParity,dagger,xpay,kernel_type>(arg, x_cb, 0, 1); break;
+      switch (parity) {
+      case 0:
+        wilson<Float, nDim, nColor, nParity, dagger, xpay, kernel_type>(
+            arg, x_cb, 0, 0);
+        break;
+      case 1:
+        wilson<Float, nDim, nColor, nParity, dagger, xpay, kernel_type>(
+            arg, x_cb, 0, 1);
+        break;
       }
-
     }
-
   }
 
 } // namespace quda

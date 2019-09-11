@@ -62,9 +62,11 @@ namespace quda {
 
     TuneKey tuneKey() const {
       if (arg.pack_blocks > 0 && arg.kernel_type == INTERIOR_KERNEL) {
-        return TuneKey(in.VolString(), typeid(*this).name(), Dslash<Float>::aux_pack);
+        return TuneKey(in.VolString(), typeid(*this).name(),
+                       Dslash<Float>::aux_pack);
       } else {
-        return TuneKey(in.VolString(), typeid(*this).name(), Dslash<Float>::aux[arg.kernel_type]);
+        return TuneKey(in.VolString(), typeid(*this).name(),
+                       Dslash<Float>::aux[arg.kernel_type]);
       }
     }
   };

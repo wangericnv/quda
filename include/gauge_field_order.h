@@ -1126,8 +1126,9 @@ namespace quda {
      to avoid the run-time overhead (dummy for trivial reconstruct
      type)
   */
-      template <int N, typename Float, QudaGhostExchange ghostExchange_, QudaStaggeredPhase = QUDA_STAGGERED_PHASE_NO>
-        struct Reconstruct {
+      template <int N, typename Float, QudaGhostExchange ghostExchange_,
+                QudaStaggeredPhase = QUDA_STAGGERED_PHASE_NO>
+      struct Reconstruct {
         typedef typename mapper<Float>::type RegType;
         Reconstruct(const GaugeField &u) {}
         Reconstruct(const Reconstruct<N, Float, ghostExchange_> &recon) {}
@@ -1370,7 +1371,7 @@ namespace quda {
      type to avoid the run-time overhead
   */
       template <typename Float, QudaGhostExchange ghostExchange_>
-        struct Reconstruct<13, Float, ghostExchange_, QUDA_STAGGERED_PHASE_NO> {
+      struct Reconstruct<13, Float, ghostExchange_, QUDA_STAGGERED_PHASE_NO> {
         typedef typename mapper<Float>::type RegType;
         typedef complex<RegType> Complex;
         const Reconstruct<12, Float, ghostExchange_> reconstruct_12;
@@ -1443,7 +1444,7 @@ namespace quda {
          type to avoid the run-time overhead
       */
       template <typename Float, QudaGhostExchange ghostExchange_>
-        struct Reconstruct<13, Float, ghostExchange_, QUDA_STAGGERED_PHASE_MILC> {
+      struct Reconstruct<13, Float, ghostExchange_, QUDA_STAGGERED_PHASE_MILC> {
         typedef typename mapper<Float>::type RegType;
         typedef complex<RegType> Complex;
 	const Reconstruct<12,Float,ghostExchange_> reconstruct_12;
@@ -1719,7 +1720,7 @@ namespace quda {
      to avoid the run-time overhead
   */
   template <typename Float, QudaGhostExchange ghostExchange_>
-    struct Reconstruct<9, Float, ghostExchange_, QUDA_STAGGERED_PHASE_MILC> {
+  struct Reconstruct<9, Float, ghostExchange_, QUDA_STAGGERED_PHASE_MILC> {
     typedef typename mapper<Float>::type RegType;
     typedef complex<RegType> Complex;
     const Reconstruct<8, Float, ghostExchange_> reconstruct_8;
@@ -1806,10 +1807,14 @@ namespace quda {
   // we default to huge allocations for gauge field (for now)
   constexpr bool default_huge_alloc = true;
 
-  template <typename Float, int length, int N, int reconLenParam, QudaStaggeredPhase stag_phase = QUDA_STAGGERED_PHASE_NO, bool huge_alloc = default_huge_alloc,
-      QudaGhostExchange ghostExchange_ = QUDA_GHOST_EXCHANGE_INVALID, bool use_inphase = false>
+  template <typename Float, int length, int N, int reconLenParam,
+            QudaStaggeredPhase stag_phase = QUDA_STAGGERED_PHASE_NO,
+            bool huge_alloc = default_huge_alloc,
+            QudaGhostExchange ghostExchange_ = QUDA_GHOST_EXCHANGE_INVALID,
+            bool use_inphase = false>
   struct FloatNOrder {
-    using Accessor = FloatNOrder<Float,length,N,reconLenParam,stag_phase,huge_alloc,ghostExchange_,use_inphase>;
+    using Accessor = FloatNOrder<Float, length, N, reconLenParam, stag_phase,
+                                 huge_alloc, ghostExchange_, use_inphase>;
 
     typedef typename mapper<Float>::type RegType;
     typedef typename VectorType<Float, N>::type Vector;
@@ -1945,33 +1950,35 @@ namespace quda {
       }
 
       /**
-	 @brief This accessor routine returns a gauge_wrapper to this object,
-	 allowing us to overload various operators for manipulating at
-	 the site level interms of matrix operations.
-	 @param[in] dir Which dimension are we requesting
-	 @param[in] x_cb Checkerboarded space-time index we are requesting
-	 @param[in] parity Parity we are requesting
-	 @return Instance of a gauge_wrapper that curries in access to
-	 this field at the above coordinates.
+         @brief This accessor routine returns a gauge_wrapper to this object,
+         allowing us to overload various operators for manipulating at
+         the site level interms of matrix operations.
+         @param[in] dir Which dimension are we requesting
+         @param[in] x_cb Checkerboarded space-time index we are requesting
+         @param[in] parity Parity we are requesting
+         @return Instance of a gauge_wrapper that curries in access to
+         this field at the above coordinates.
        */
-      __device__ __host__ inline gauge_wrapper<RegType, Accessor> operator()(int dim, int x_cb, int parity, Float phase = 1.0)
-      {
-        return gauge_wrapper<RegType, Accessor>(*this, dim, x_cb, parity, phase);
+      __device__ __host__ inline gauge_wrapper<RegType, Accessor>
+      operator()(int dim, int x_cb, int parity, Float phase = 1.0) {
+        return gauge_wrapper<RegType, Accessor>(*this, dim, x_cb, parity,
+                                                phase);
       }
 
       /**
-	 @brief This accessor routine returns a const gauge_wrapper to this object,
-	 allowing us to overload various operators for manipulating at
-	 the site level interms of matrix operations.
-	 @param[in] dir Which dimension are we requesting
-	 @param[in] x_cb Checkerboarded space-time index we are requesting
-	 @param[in] parity Parity we are requesting
-	 @return Instance of a gauge_wrapper that curries in access to
-	 this field at the above coordinates.
+         @brief This accessor routine returns a const gauge_wrapper to this
+         object, allowing us to overload various operators for manipulating at
+         the site level interms of matrix operations.
+         @param[in] dir Which dimension are we requesting
+         @param[in] x_cb Checkerboarded space-time index we are requesting
+         @param[in] parity Parity we are requesting
+         @return Instance of a gauge_wrapper that curries in access to
+         this field at the above coordinates.
        */
-      __device__ __host__ inline const gauge_wrapper<RegType, Accessor> operator()(int dim, int x_cb, int parity, Float phase = 1.0) const
-      {
-        return gauge_wrapper<RegType, Accessor> (const_cast<Accessor&>(*this), dim, x_cb, parity, phase);
+      __device__ __host__ inline const gauge_wrapper<RegType, Accessor>
+      operator()(int dim, int x_cb, int parity, Float phase = 1.0) const {
+        return gauge_wrapper<RegType, Accessor>(const_cast<Accessor &>(*this),
+                                                dim, x_cb, parity, phase);
       }
 
       __device__ __host__ inline void loadGhost(RegType v[length], int x, int dir, int parity, Float inphase = 1.0) const
@@ -2033,34 +2040,35 @@ namespace quda {
       }
 
       /**
-	 @brief This accessor routine returns a gauge_ghost_wrapper to this object,
-	 allowing us to overload various operators for manipulating at
-	 the site level interms of matrix operations.
-	 @param[in] dir Which dimension are we requesting
-	 @param[in] ghost_idx Ghost index we are requesting
-	 @param[in] parity Parity we are requesting
-	 @return Instance of a gauge_wrapper that curries in access to
-	 this field at the above coordinates.
+         @brief This accessor routine returns a gauge_ghost_wrapper to this
+         object, allowing us to overload various operators for manipulating at
+         the site level interms of matrix operations.
+         @param[in] dir Which dimension are we requesting
+         @param[in] ghost_idx Ghost index we are requesting
+         @param[in] parity Parity we are requesting
+         @return Instance of a gauge_wrapper that curries in access to
+         this field at the above coordinates.
        */
-      __device__ __host__ inline gauge_ghost_wrapper<RegType, Accessor> Ghost(int dim, int ghost_idx, int parity, Float phase = 1.0)
-      {
-        return gauge_ghost_wrapper<RegType, Accessor>(*this, dim, ghost_idx, parity, phase);
+      __device__ __host__ inline gauge_ghost_wrapper<RegType, Accessor>
+      Ghost(int dim, int ghost_idx, int parity, Float phase = 1.0) {
+        return gauge_ghost_wrapper<RegType, Accessor>(*this, dim, ghost_idx,
+                                                      parity, phase);
       }
 
       /**
-	 @brief This accessor routine returns a const gauge_wrapper to this object,
-	 allowing us to overload various operators for manipulating at
-	 the site level interms of matrix operations.
-	 @param[in] dir Which dimension are we requesting
-	 @param[in] ghost_idx Ghost index we are requesting
-	 @param[in] parity Parity we are requesting
-	 @return Instance of a gauge_wrapper that curries in access to
-	 this field at the above coordinates.
+         @brief This accessor routine returns a const gauge_wrapper to this
+         object, allowing us to overload various operators for manipulating at
+         the site level interms of matrix operations.
+         @param[in] dir Which dimension are we requesting
+         @param[in] ghost_idx Ghost index we are requesting
+         @param[in] parity Parity we are requesting
+         @return Instance of a gauge_wrapper that curries in access to
+         this field at the above coordinates.
        */
       __device__ __host__ inline const gauge_ghost_wrapper<RegType, Accessor>
-        Ghost(int dim, int ghost_idx, int parity, Float phase = 1.0) const
-      {
-        return gauge_ghost_wrapper<RegType, Accessor>(const_cast<Accessor&>(*this), dim, ghost_idx, parity, phase);
+      Ghost(int dim, int ghost_idx, int parity, Float phase = 1.0) const {
+        return gauge_ghost_wrapper<RegType, Accessor>(
+            const_cast<Accessor &>(*this), dim, ghost_idx, parity, phase);
       }
 
       __device__ __host__ inline void loadGhostEx(RegType v[length], int buff_idx, int extended_idx, int dir,

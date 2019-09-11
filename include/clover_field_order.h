@@ -510,17 +510,18 @@ namespace quda {
     */
     template <typename Float, int length, int N, bool huge_alloc=false>
       struct FloatNOrder {
-        using Accessor = FloatNOrder<Float,length,N,huge_alloc>;
-	typedef typename mapper<Float>::type RegType;
-	typedef typename VectorType<Float,N>::type Vector;
-	typedef typename AllocType<huge_alloc>::type AllocInt;
-        typedef float norm_type;
-	static const int M=length/(N*2); // number of short vectors per chiral block
-	static const int block=length/2; // chiral block size
-	Float *clover;
-	norm_type *norm;
-	const AllocInt offset; // offset can be 32-bit or 64-bit
-	const AllocInt norm_offset;
+      using Accessor = FloatNOrder<Float, length, N, huge_alloc>;
+      typedef typename mapper<Float>::type RegType;
+      typedef typename VectorType<Float, N>::type Vector;
+      typedef typename AllocType<huge_alloc>::type AllocInt;
+      typedef float norm_type;
+      static const int M =
+          length / (N * 2); // number of short vectors per chiral block
+      static const int block = length / 2; // chiral block size
+      Float *clover;
+      norm_type *norm;
+      const AllocInt offset; // offset can be 32-bit or 64-bit
+      const AllocInt norm_offset;
 #ifdef USE_TEXTURE_OBJECTS
 	typedef typename TexVectorType<RegType,N>::type TexVector;
 	cudaTextureObject_t tex;
@@ -568,38 +569,40 @@ namespace quda {
       
 	bool  Twisted()	const	{return twisted;}
 	Float Mu2()	const	{return mu2;}
-	
-	/**
-	   @brief This accessor routine returns a clover_wrapper to this object,
-	   allowing us to overload various operators for manipulating at
-	   the site level interms of matrix operations.
-	   @param[in] x_cb Checkerboarded space-time index we are requesting
-	   @param[in] parity Parity we are requesting
-	   @param[in] chirality Chirality we are requesting
-	   @return Instance of a colorspinor_wrapper that curries in access to
-	   this field at the above coordinates.
-	*/
-	__device__ __host__ inline clover_wrapper<RegType,Accessor> operator()(int x_cb, int parity, int chirality)
-        {
-	  return clover_wrapper<RegType,Accessor>(*this, x_cb, parity, chirality);
-	}
 
-	/**
-	   @brief This accessor routine returns a const colorspinor_wrapper to this object,
-	   allowing us to overload various operators for manipulating at
-	   the site level interms of matrix operations.
-	   @param[in] x_cb Checkerboarded space-time index we are requesting
-	   @param[in] parity Parity we are requesting
-	   @param[in] chirality Chirality we are requesting
-	   @return Instance of a colorspinor_wrapper that curries in access to
-	   this field at the above coordinates.
-	*/
-	__device__ __host__ inline const clover_wrapper<RegType,Accessor> operator()(int x_cb, int parity, int chirality) const
-        {
-	  return clover_wrapper<RegType,Accessor>(const_cast<Accessor&>(*this), x_cb, parity, chirality);
-	}
+        /**
+           @brief This accessor routine returns a clover_wrapper to this object,
+           allowing us to overload various operators for manipulating at
+           the site level interms of matrix operations.
+           @param[in] x_cb Checkerboarded space-time index we are requesting
+           @param[in] parity Parity we are requesting
+           @param[in] chirality Chirality we are requesting
+           @return Instance of a colorspinor_wrapper that curries in access to
+           this field at the above coordinates.
+        */
+        __device__ __host__ inline clover_wrapper<RegType, Accessor>
+        operator()(int x_cb, int parity, int chirality) {
+          return clover_wrapper<RegType, Accessor>(*this, x_cb, parity,
+                                                   chirality);
+        }
 
-	/**
+        /**
+           @brief This accessor routine returns a const colorspinor_wrapper to
+           this object, allowing us to overload various operators for
+           manipulating at the site level interms of matrix operations.
+           @param[in] x_cb Checkerboarded space-time index we are requesting
+           @param[in] parity Parity we are requesting
+           @param[in] chirality Chirality we are requesting
+           @return Instance of a colorspinor_wrapper that curries in access to
+           this field at the above coordinates.
+        */
+        __device__ __host__ inline const clover_wrapper<RegType, Accessor>
+        operator()(int x_cb, int parity, int chirality) const {
+          return clover_wrapper<RegType, Accessor>(
+              const_cast<Accessor &>(*this), x_cb, parity, chirality);
+        }
+
+        /**
 	   @brief Load accessor for a single chiral block
 	   @param[out] v Vector of loaded elements
 	   @param[in] x Checkerboarded site index

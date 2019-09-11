@@ -228,8 +228,7 @@ namespace quda {
     return true;
   }
 
-  template <typename Float_>
-  struct DslashArg {
+  template <typename Float_> struct DslashArg {
 
     typedef Float_ Float;
     typedef typename mapper<Float>::type real;
@@ -264,22 +263,26 @@ namespace quda {
     real twist_b; // chiral twist
     real twist_c; // flavor twist
 
-    int pack_threads;           // really number of face sites we have to pack
+    int pack_threads; // really number of face sites we have to pack
     int_fastdiv blocks_per_dir;
     int dim_map[4];
     int active_dims;
-    int pack_blocks; // total number of blocks used for packing in the dslash kernels
+    int pack_blocks; // total number of blocks used for packing in the dslash
+                     // kernels
 
     // constructor needed for staggered to set xpay from derived class
-    DslashArg(const ColorSpinorField &in, const GaugeField &U, int parity, bool dagger, bool xpay, int nFace, const int *comm_override)
-      : parity(parity), nParity(in.SiteSubset()), nFace(nFace), reconstruct(U.Reconstruct()),
-        X0h(nParity == 2 ? in.X(0)/2 : in.X(0)),
-        dim{ (3-nParity) * in.X(0), in.X(1), in.X(2), in.X(3), in.Ndim() == 5 ? in.X(4) : 1 },
-        volumeCB(in.VolumeCB()), dagger(dagger), xpay(xpay),
-        kernel_type(INTERIOR_KERNEL), threads(in.VolumeCB()), threadDimMapLower{ }, threadDimMapUpper{ },
-        twist_a(0.0), twist_b(0.0), twist_c(0.0),
-        pack_threads(0), blocks_per_dir(1), dim_map{ }, active_dims(0), pack_blocks(0)
-    {
+    DslashArg(const ColorSpinorField &in, const GaugeField &U, int parity,
+              bool dagger, bool xpay, int nFace, const int *comm_override)
+        : parity(parity), nParity(in.SiteSubset()), nFace(nFace),
+          reconstruct(U.Reconstruct()),
+          X0h(nParity == 2 ? in.X(0) / 2 : in.X(0)),
+          dim{(3 - nParity) * in.X(0), in.X(1), in.X(2), in.X(3),
+              in.Ndim() == 5 ? in.X(4) : 1},
+          volumeCB(in.VolumeCB()), dagger(dagger), xpay(xpay),
+          kernel_type(INTERIOR_KERNEL),
+          threads(in.VolumeCB()), threadDimMapLower{}, threadDimMapUpper{},
+          twist_a(0.0), twist_b(0.0), twist_c(0.0), pack_threads(0),
+          blocks_per_dir(1), dim_map{}, active_dims(0), pack_blocks(0) {
       for (int d=0; d<4; d++) {
         ghostDim[d] = comm_dim_partitioned(d);
         commDim[d] = (!comm_override[d]) ? 0 : comm_dim_partitioned(d);
@@ -299,10 +302,12 @@ namespace quda {
         // for now we set one block per direction / dimension
         int d = 0;
         pack_threads = 0;
-        for (int i=0; i<4; i++) {
-          if (!commDim[i]) continue;
-          if ( i==3 && !getKernelPackT() ) continue;
-          pack_threads += 2*nFace*dc.ghostFaceCB[i]; // 2 for fwd/back faces
+        for (int i = 0; i < 4; i++) {
+          if (!commDim[i])
+            continue;
+          if (i == 3 && !getKernelPackT())
+            continue;
+          pack_threads += 2 * nFace * dc.ghostFaceCB[i]; // 2 for fwd/back faces
           dim_map[d++] = i;
         }
         active_dims = d;
@@ -313,7 +318,6 @@ namespace quda {
         active_dims = 0;
       }
     }
-
   };
 
   template <typename Float>
