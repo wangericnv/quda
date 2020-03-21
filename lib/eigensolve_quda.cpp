@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <time.h>
 
 #include <quda_internal.h>
 #include <eigensolve_quda.h>
@@ -14,6 +15,16 @@
 
 #include <Eigen/Eigenvalues>
 #include <Eigen/Dense>
+
+// Convenience function for checking CUDA runtime API results
+// can be wrapped around any runtime API call. No-op in release builds.
+inline cudaError_t checkCuda(cudaError_t result) {
+  if (result != cudaSuccess) {
+    fprintf(stderr, "CUDA Runtime Error: %s\n", cudaGetErrorString(result));
+    assert(result == cudaSuccess);
+  }
+  return result;
+}
 
 namespace quda
 {
@@ -238,32 +249,121 @@ namespace quda
   }
 
   // Orthogonalise r against V_[j]
+  // If j%2 == 0, then go DOWN the Krylov Space. If j%2 != 0, go UP the Krylov space.
+  // This way, we ensure that the last batch of vectors from the previous block ortho
+  // are still in memory.
   Complex EigenSolver::blockOrthogonalize(std::vector<ColorSpinorField *> vecs, std::vector<ColorSpinorField *> rvec,
                                           int j)
   {
-    Complex *s = (Complex *)safe_malloc((j + 1) * sizeof(Complex));
+    double clockt = -clock();
+    int prefetch_batch_size = 10; // <- Expose this via param
+    cudaStream_t stream[prefetch_batch_size];
+    for(int i=0; i<prefetch_batch_size; i++) checkCuda( cudaStreamCreate(&stream[i]) );
+    int offset = 0;
     Complex sum(0.0, 0.0);
-    std::vector<ColorSpinorField *> vecs_ptr;
-    vecs_ptr.reserve(j + 1);
-    for (int i = 0; i < j + 1; i++) { vecs_ptr.push_back(vecs[i]); }
-    // Block dot products stored in s.
-    blas::cDotProduct(s, vecs_ptr, rvec);
 
-    // Block orthogonalise
-    for (int i = 0; i < j + 1; i++) {
-      sum += s[i];
-      s[i] *= -1.0;
+    bool ascending = (j%2 == 0 ? false : true);
+    int start = 0;
+    int end = 0;
+    
+    int batches = (j+1)/prefetch_batch_size;
+    int remainder = (j+1)%prefetch_batch_size;
+    Complex *s_batch = (Complex *)safe_malloc(prefetch_batch_size * sizeof(Complex));
+    Complex *s_remainder = (Complex *)safe_malloc(remainder * sizeof(Complex));    
+
+    //printfQuda("j=%d, batches=%d, remainder=%d\n", j, batches, remainder);
+    
+    if(batches > 0) {
+      for(int b=0; b<batches; b++) {
+	std::vector<ColorSpinorField *> vecs_ptr;
+	vecs_ptr.reserve(prefetch_batch_size);
+	if(ascending) {
+	  start = (b+1)*prefetch_batch_size - 1;
+	  end   = (b+0)*prefetch_batch_size - 1;
+	} else {
+	  start = (j - (b+0)*prefetch_batch_size);
+	  end   = (j - (b+1)*prefetch_batch_size);
+	}
+	for (int i = start; i > end; i--) {
+	  vecs_ptr.push_back(vecs[i]);
+	}
+       
+	// Block dot products stored in s.	  
+	blas::cDotProduct(s_batch, vecs_ptr, rvec);
+	// Block orthogonalise
+	for (int i = 0; i < prefetch_batch_size; i++) {
+	  sum += s_batch[i];
+	  s_batch[i] *= -1.0;
+	}
+	blas::caxpy(s_batch, vecs_ptr, rvec);
+	
+	// While the caxpy compute kernel is running, fetch the NEXT batch
+	if(b < batches - 1) {
+	  // Do a full batch
+	  if(ascending) {
+	    start = (b+2)*prefetch_batch_size - 1;
+	    end   = (b+1)*prefetch_batch_size - 1;
+	  } else {
+	    start = (j - (b+1)*prefetch_batch_size);
+	    end   = (j - (b+2)*prefetch_batch_size);
+	  }
+	  offset=0;
+	  for (int i = start; i > end; i--) {
+	    vecs[i]->prefetch(QUDA_CUDA_FIELD_LOCATION, stream[offset]);
+	    offset++;
+	    //printfQuda("prefetched vector %d, offset = %d\n", i, offset);;
+	  }
+	} else {
+	  // Only prefetch the remainder
+	  if(ascending) {
+	    start = j;
+	    end   = (b+1)*prefetch_batch_size - 1;
+	  } else {
+	    start = (j - (b+1)*prefetch_batch_size);
+	    end   = 0;
+	  }
+	  offset=0;
+	  for (int i = start; i > end; i--) {
+	    vecs[i]->prefetch(QUDA_CUDA_FIELD_LOCATION, stream[offset]);
+	    offset++;
+	    //printfQuda("prefetched vector %d, offset = %d\n", i, offset);;
+	  }	  
+	}
+      }
     }
-    blas::caxpy(s, vecs_ptr, rvec);
-
-    host_free(s);
-
+    
+    // Do remainder 
+    if(remainder > 0) {
+      std::vector<ColorSpinorField *> vecs_ptr;
+      vecs_ptr.reserve(remainder);
+      for (int i = 0; i < remainder; i++) {
+	vecs_ptr.push_back(vecs[i]);
+      }      
+      // Block dot products stored in s.
+      blas::cDotProduct(s_remainder, vecs_ptr, rvec);
+      
+      // Block orthogonalise
+      for (int i = 0; i < remainder; i++) {
+	sum += s_remainder[i];
+	s_remainder[i] *= -1.0;
+      }     
+      blas::caxpy(s_remainder, vecs_ptr, rvec);
+      // Do the lanczosStep routine a favour and prefetch the the next vector
+      if(j<nKr) vecs[j+1]->prefetch(QUDA_CUDA_FIELD_LOCATION, stream[0]);
+    }
+    
+    host_free(s_batch);
+    host_free(s_remainder);
+    
+    clockt += clock();
+    printfQuda("Block Ortho Time %d vectors = %e\n", (j+1), clockt/CLOCKS_PER_SEC);
     // Save orthonormalisation tuning
     saveTuneCache();
     
     return sum;
   }
-
+  
+  
   void EigenSolver::permuteVecs(std::vector<ColorSpinorField *> &kSpace, int *mat, int size)
   {
     std::vector<int> pivots(size);
@@ -800,7 +900,10 @@ namespace quda
     csParam = csParamClone;
     // Increase Krylov space to nKr+1 one vector, create residual
     kSpace.reserve(nKr + 1);
-    for (int i = nConv; i < nKr + 1; i++) kSpace.push_back(ColorSpinorField::Create(csParam));
+    for (int i = nConv; i < nKr + 1; i++) {
+      printfQuda("Creating vector %d\n", i);
+      kSpace.push_back(ColorSpinorField::Create(csParam));
+    }
     csParam.create = QUDA_ZERO_FIELD_CREATE;
     r.push_back(ColorSpinorField::Create(csParam));
     // Increase evals space to nEv
@@ -858,11 +961,11 @@ namespace quda
 
     // Loop over restart iterations.
     while (restart_iter < max_restarts && !converged) {
-
       for (int step = num_keep; step < nKr; step++) lanczosStep(kSpace, step);
       iter += (nKr - num_keep);
       if (getVerbosity() >= QUDA_DEBUG_VERBOSE) printfQuda("Restart %d complete\n", restart_iter + 1);
 
+      double clockc = -clock();
       int arrow_pos = std::max(num_keep - num_locked + 1, 2);
       // The eigenvalues are returned in the alpha array
       profile.TPSTOP(QUDA_PROFILE_COMPUTE);
@@ -932,6 +1035,8 @@ namespace quda
         converged = true;
       }
 
+      clockc += clock();
+      if (getVerbosity() >= QUDA_DEBUG_VERBOSE) printfQuda("Compression %d Time = %e\n", restart_iter, clockc/CLOCKS_PER_SEC);      
       restart_iter++;
     }
 
