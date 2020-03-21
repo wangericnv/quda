@@ -242,6 +242,7 @@ void setEigParam(QudaEigParam &eig_param)
   eig_param.nKr = eig_nKr;
   eig_param.tol = eig_tol;
   eig_param.batched_rotate = eig_batched_rotate;
+  eig_param.prefetch_batch = eig_prefetch_batch;
   eig_param.require_convergence = eig_require_convergence ? QUDA_BOOLEAN_TRUE : QUDA_BOOLEAN_FALSE;
   eig_param.check_interval = eig_check_interval;
   eig_param.max_restarts = eig_max_restarts;

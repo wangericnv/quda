@@ -277,6 +277,7 @@ extern int eig_nEv;
 extern int eig_nKr;
 extern int eig_nConv; // If unchanged, will be set to nEv
 extern int eig_batched_rotate; // If unchanged, will be set to maximum
+extern int eig_prefetch_batch; // If unchanged, will be set to maximum
 extern bool eig_require_convergence;
 extern int eig_check_interval;
 extern int eig_max_restarts;
@@ -303,6 +304,7 @@ extern quda::mgarray<bool> mg_eig;
 extern quda::mgarray<int> mg_eig_nEv;
 extern quda::mgarray<int> mg_eig_nKr;
 extern quda::mgarray<int> mg_eig_batched_rotate;
+extern quda::mgarray<int> mg_eig_prefetch_batch;
 extern quda::mgarray<bool> mg_eig_require_convergence;
 extern quda::mgarray<int> mg_eig_check_interval;
 extern quda::mgarray<int> mg_eig_max_restarts;

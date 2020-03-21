@@ -36,6 +36,7 @@ protected:
     int max_restarts;
     int check_interval;
     int batched_rotate;
+    int prefetch_batch;
     int iter;
     int iter_converged;
     int iter_locked;

@@ -442,6 +442,8 @@ extern "C" {
     int max_restarts;
     /** For the Ritz rotation, the maximal number of extra vectors the solver may allocate **/
     int batched_rotate;
+    /** For the block orthonormalisation, the maximal number of vectors the solver may prefetch **/
+    int prefetch_batch;
 
     /** In the test function, cross check the device result against ARPACK **/
     QudaBoolean arpack_check;

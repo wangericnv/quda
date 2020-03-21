@@ -161,6 +161,7 @@ void printQudaEigParam(QudaEigParam *param) {
   P(nKr, 0);
   P(nConv, 0);
   P(batched_rotate, 0);
+  P(prefetch_batch, 0);
   P(tol, 0.0);
   P(check_interval, 0);
   P(max_restarts, 0);
@@ -185,6 +186,7 @@ void printQudaEigParam(QudaEigParam *param) {
   P(nKr, INVALID_INT);
   P(nConv, INVALID_INT);
   P(batched_rotate, INVALID_INT);
+  P(prefetch_batch, INVALID_INT);
   P(tol, INVALID_DOUBLE);
   P(check_interval, INVALID_INT);
   P(max_restarts, INVALID_INT);

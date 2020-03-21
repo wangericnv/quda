@@ -145,6 +145,7 @@ int eig_nEv = 16;
 int eig_nKr = 32;
 int eig_nConv = -1; // If unchanged, will be set to nEv
 int eig_batched_rotate = 0; // If unchanged, will be set to maximum
+int eig_prefetch_batch = 0; // If unchanged, will be set to maximum
 bool eig_require_convergence = true;
 int eig_check_interval = 10;
 int eig_max_restarts = 1000;
@@ -171,6 +172,7 @@ quda::mgarray<bool> mg_eig = {};
 quda::mgarray<int> mg_eig_nEv = {};
 quda::mgarray<int> mg_eig_nKr = {};
 quda::mgarray<int> mg_eig_batched_rotate = {};
+quda::mgarray<int> mg_eig_prefetch_batch = {};
 quda::mgarray<bool> mg_eig_require_convergence = {};
 quda::mgarray<int> mg_eig_check_interval = {};
 quda::mgarray<int> mg_eig_max_restarts = {};
@@ -548,6 +550,8 @@ void add_eigen_option_group(std::shared_ptr<QUDAApp> quda_app)
   opgroup->add_option("--eig-nKr", eig_nKr, "The size of the Krylov subspace to use in the eigensolver");
   opgroup->add_option("--eig-batched-rotate", eig_batched_rotate,
                       "The maximum number of extra eigenvectors the solver may allocate to perform a Ritz rotation.");
+  opgroup->add_option("--eig-prefetch-batch", eig_prefetch_batch,
+                      "The maximum number of eigenvectors the solver may prefetch during block orthogonalisation.");
   opgroup->add_option("--eig-poly-deg", eig_poly_deg, "TODO");
   opgroup->add_option(
     "--eig-require-convergence",
@@ -661,6 +665,9 @@ void add_multigrid_option_group(std::shared_ptr<QUDAApp> quda_app)
   quda_app->add_mgoption(
     opgroup, "--mg-eig-batched-rotate", mg_eig_batched_rotate, CLI::Validator(),
     "The maximum number of extra eigenvectors the solver may allocate to perform a Ritz rotation.");
+  quda_app->add_mgoption(
+    opgroup, "--mg-eig-prefecth-batch", mg_eig_prefetch_batch, CLI::Validator(),
+    "The maximum number of eigenvectors the solver may prefetch during block orthogonalisation.");
   quda_app->add_mgoption(opgroup, "--mg-eig-poly-deg", mg_eig_poly_deg, CLI::PositiveNumber,
                          "Set the degree of the Chebyshev polynomial (default 100)");
   quda_app->add_mgoption(
