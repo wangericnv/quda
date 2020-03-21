@@ -257,107 +257,107 @@ namespace quda
   Complex EigenSolver::blockOrthogonalize(std::vector<ColorSpinorField *> vecs, std::vector<ColorSpinorField *> rvec,
                                           int j)
   {
-    if(prefetch_batch > 0) {
+    if (prefetch_batch > 0) {
       double clockt = -clock();
       cudaStream_t stream[prefetch_batch];
       for (int i = 0; i < prefetch_batch; i++) checkCuda(cudaStreamCreate(&stream[i]));
       int offset = 0;
       Complex sum(0.0, 0.0);
-      
+
       bool ascending = (j % 2 == 0 ? false : true);
       int start = 0;
       int end = 0;
-      
+
       int batches = (j + 1) / prefetch_batch;
       int remainder = (j + 1) % prefetch_batch;
       Complex *s_batch = (Complex *)safe_malloc(prefetch_batch * sizeof(Complex));
       Complex *s_remainder = (Complex *)safe_malloc(remainder * sizeof(Complex));
-      
+
       // printfQuda("j=%d, batches=%d, remainder=%d\n", j, batches, remainder);
-      
+
       if (batches > 0) {
-	for (int b = 0; b < batches; b++) {
-	  std::vector<ColorSpinorField *> vecs_ptr;
-	  vecs_ptr.reserve(prefetch_batch);
-	  if (ascending) {
-	    start = (b + 1) * prefetch_batch - 1;
-	    end = (b + 0) * prefetch_batch - 1;
-	  } else {
-	    start = (j - (b + 0) * prefetch_batch);
-	    end = (j - (b + 1) * prefetch_batch);
-	  }
-	  for (int i = start; i > end; i--) { vecs_ptr.push_back(vecs[i]); }
-	  
-	  // Block dot products stored in s.
-	  blas::cDotProduct(s_batch, vecs_ptr, rvec);
-	  // Block orthogonalise
-	  for (int i = 0; i < prefetch_batch; i++) {
-	    sum += s_batch[i];
-	    s_batch[i] *= -1.0;
-	  }
-	  blas::caxpy(s_batch, vecs_ptr, rvec);
-	  
-	  // While the caxpy compute kernel is running, fetch the NEXT batch
-	  if (b < batches - 1) {
-	    // Do a full batch
-	    if (ascending) {
-	      start = (b + 2) * prefetch_batch - 1;
-	      end = (b + 1) * prefetch_batch - 1;
-	    } else {
-	      start = (j - (b + 1) * prefetch_batch);
-	      end = (j - (b + 2) * prefetch_batch);
-	    }
-	    offset = 0;
-	    for (int i = start; i > end; i--) {
-	      vecs[i]->prefetch(QUDA_CUDA_FIELD_LOCATION, stream[offset]);
-	      offset++;
-	      // printfQuda("prefetched vector %d, offset = %d\n", i, offset);;
-	    }
-	  } else {
-	    // Only prefetch the remainder
-	    if (ascending) {
-	      start = j;
-	      end = (b + 1) * prefetch_batch - 1;
-	    } else {
-	      start = (j - (b + 1) * prefetch_batch);
-	      end = 0;
-	    }
-	    offset = 0;
-	    for (int i = start; i > end; i--) {
-	      vecs[i]->prefetch(QUDA_CUDA_FIELD_LOCATION, stream[offset]);
-	      offset++;
-	      // printfQuda("prefetched vector %d, offset = %d\n", i, offset);;
-	    }
-	  }
-	}
+        for (int b = 0; b < batches; b++) {
+          std::vector<ColorSpinorField *> vecs_ptr;
+          vecs_ptr.reserve(prefetch_batch);
+          if (ascending) {
+            start = (b + 1) * prefetch_batch - 1;
+            end = (b + 0) * prefetch_batch - 1;
+          } else {
+            start = (j - (b + 0) * prefetch_batch);
+            end = (j - (b + 1) * prefetch_batch);
+          }
+          for (int i = start; i > end; i--) { vecs_ptr.push_back(vecs[i]); }
+
+          // Block dot products stored in s.
+          blas::cDotProduct(s_batch, vecs_ptr, rvec);
+          // Block orthogonalise
+          for (int i = 0; i < prefetch_batch; i++) {
+            sum += s_batch[i];
+            s_batch[i] *= -1.0;
+          }
+          blas::caxpy(s_batch, vecs_ptr, rvec);
+
+          // While the caxpy compute kernel is running, fetch the NEXT batch
+          if (b < batches - 1) {
+            // Do a full batch
+            if (ascending) {
+              start = (b + 2) * prefetch_batch - 1;
+              end = (b + 1) * prefetch_batch - 1;
+            } else {
+              start = (j - (b + 1) * prefetch_batch);
+              end = (j - (b + 2) * prefetch_batch);
+            }
+            offset = 0;
+            for (int i = start; i > end; i--) {
+              vecs[i]->prefetch(QUDA_CUDA_FIELD_LOCATION, stream[offset]);
+              offset++;
+              // printfQuda("prefetched vector %d, offset = %d\n", i, offset);;
+            }
+          } else {
+            // Only prefetch the remainder
+            if (ascending) {
+              start = j;
+              end = (b + 1) * prefetch_batch - 1;
+            } else {
+              start = (j - (b + 1) * prefetch_batch);
+              end = 0;
+            }
+            offset = 0;
+            for (int i = start; i > end; i--) {
+              vecs[i]->prefetch(QUDA_CUDA_FIELD_LOCATION, stream[offset]);
+              offset++;
+              // printfQuda("prefetched vector %d, offset = %d\n", i, offset);;
+            }
+          }
+        }
       }
-      
+
       // Do remainder
       if (remainder > 0) {
-	std::vector<ColorSpinorField *> vecs_ptr;
-	vecs_ptr.reserve(remainder);
-	for (int i = 0; i < remainder; i++) { vecs_ptr.push_back(vecs[i]); }
-	// Block dot products stored in s.
-	blas::cDotProduct(s_remainder, vecs_ptr, rvec);
-	
-	// Block orthogonalise
-	for (int i = 0; i < remainder; i++) {
-	  sum += s_remainder[i];
-	  s_remainder[i] *= -1.0;
-	}
-	blas::caxpy(s_remainder, vecs_ptr, rvec);
-	// Do the lanczosStep routine a favour and prefetch the the next vector
-	if (j < nKr) vecs[j + 1]->prefetch(QUDA_CUDA_FIELD_LOCATION, stream[0]);
+        std::vector<ColorSpinorField *> vecs_ptr;
+        vecs_ptr.reserve(remainder);
+        for (int i = 0; i < remainder; i++) { vecs_ptr.push_back(vecs[i]); }
+        // Block dot products stored in s.
+        blas::cDotProduct(s_remainder, vecs_ptr, rvec);
+
+        // Block orthogonalise
+        for (int i = 0; i < remainder; i++) {
+          sum += s_remainder[i];
+          s_remainder[i] *= -1.0;
+        }
+        blas::caxpy(s_remainder, vecs_ptr, rvec);
+        // Do the lanczosStep routine a favour and prefetch the the next vector
+        if (j < nKr) vecs[j + 1]->prefetch(QUDA_CUDA_FIELD_LOCATION, stream[0]);
       }
-      
+
       host_free(s_batch);
       host_free(s_remainder);
-      
+
       clockt += clock();
       printfQuda("Block Ortho Time %d vectors = %e\n", (j + 1), clockt / CLOCKS_PER_SEC);
       // Save orthonormalisation tuning
       saveTuneCache();
-      
+
       return sum;
     } else {
       Complex *s = (Complex *)safe_malloc((j + 1) * sizeof(Complex));
@@ -367,20 +367,20 @@ namespace quda
       for (int i = 0; i < j + 1; i++) { vecs_ptr.push_back(vecs[i]); }
       // Block dot products stored in s.
       blas::cDotProduct(s, vecs_ptr, rvec);
-      
+
       // Block orthogonalise
       for (int i = 0; i < j + 1; i++) {
-	sum += s[i];
-	s[i] *= -1.0;
+        sum += s[i];
+        s[i] *= -1.0;
       }
       blas::caxpy(s, vecs_ptr, rvec);
-      
+
       host_free(s);
-      
+
       // Save orthonormalisation tuning
       saveTuneCache();
-      
-      return sum;      
+
+      return sum;
     }
   }
 

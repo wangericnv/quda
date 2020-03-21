@@ -665,9 +665,8 @@ void add_multigrid_option_group(std::shared_ptr<QUDAApp> quda_app)
   quda_app->add_mgoption(
     opgroup, "--mg-eig-batched-rotate", mg_eig_batched_rotate, CLI::Validator(),
     "The maximum number of extra eigenvectors the solver may allocate to perform a Ritz rotation.");
-  quda_app->add_mgoption(
-    opgroup, "--mg-eig-prefecth-batch", mg_eig_prefetch_batch, CLI::Validator(),
-    "The maximum number of eigenvectors the solver may prefetch during block orthogonalisation.");
+  quda_app->add_mgoption(opgroup, "--mg-eig-prefecth-batch", mg_eig_prefetch_batch, CLI::Validator(),
+                         "The maximum number of eigenvectors the solver may prefetch during block orthogonalisation.");
   quda_app->add_mgoption(opgroup, "--mg-eig-poly-deg", mg_eig_poly_deg, CLI::PositiveNumber,
                          "Set the degree of the Chebyshev polynomial (default 100)");
   quda_app->add_mgoption(
