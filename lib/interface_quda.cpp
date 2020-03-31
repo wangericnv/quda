@@ -1669,9 +1669,10 @@ namespace quda {
     diracParam.mass = inv_param->mass;
     diracParam.m5 = inv_param->m5;
     diracParam.mu = inv_param->mu;
-
+    
     for (int i=0; i<4; i++) diracParam.commDim[i] = 1;   // comms are always on
 
+    diracParam.op_precision = diracParam.gauge->Precision();
     if (diracParam.gauge->Precision() != inv_param->cuda_prec)
       errorQuda("Gauge precision %d does not match requested precision %d\n", diracParam.gauge->Precision(),
                 inv_param->cuda_prec);
@@ -1690,7 +1691,8 @@ namespace quda {
     for (int i=0; i<4; i++) {
       diracParam.commDim[i] = 1;   // comms are always on
     }
-
+    diracParam.op_precision = diracParam.gauge->Precision();
+    
     if (diracParam.gauge->Precision() != inv_param->cuda_prec_sloppy)
       errorQuda("Gauge precision %d does not match requested precision %d\n", diracParam.gauge->Precision(),
                 inv_param->cuda_prec_sloppy);
@@ -1709,11 +1711,12 @@ namespace quda {
       diracParam.commDim[i] = 1;   // comms are always on
     }
 
+    diracParam.op_precision = diracParam.gauge->Precision();
     if (diracParam.gauge->Precision() != inv_param->cuda_prec_refinement_sloppy)
       errorQuda("Gauge precision %d does not match requested precision %d\n", diracParam.gauge->Precision(),
                 inv_param->cuda_prec_refinement_sloppy);
   }
-
+  
   // The preconditioner currently mimicks the sloppy operator with no comms
   void setDiracPreParam(DiracParam &diracParam, QudaInvertParam *inv_param, const bool pc, bool comms)
   {
@@ -1741,6 +1744,7 @@ namespace quda {
        diracParam.gauge = gaugeFatPrecondition;
     }
 
+    diracParam.op_precision = diracParam.gauge->Precision();
     if (diracParam.gauge->Precision() != inv_param->cuda_prec_precondition)
       errorQuda("Gauge precision %d does not match requested precision %d\n", diracParam.gauge->Precision(),
                 inv_param->cuda_prec_precondition);

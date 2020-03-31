@@ -284,7 +284,7 @@ namespace quda {
 
     QudaPrecision HaloPrecision() const { return halo_precision; }    
     void setHaloPrecision(QudaPrecision halo_precision_) const { halo_precision = halo_precision_; }
-    QudaPrecision Precision() const { return op_precision; }
+    QudaPrecision OpPrecision() const { return op_precision; }
 
     /**
       @brief If managed memory and prefetch is enabled, prefetch

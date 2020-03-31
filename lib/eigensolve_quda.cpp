@@ -125,7 +125,8 @@ namespace quda
       if (!tmp1) tmp1 = ColorSpinorField::Create(param);
       if (!tmp2) tmp2 = ColorSpinorField::Create(param);
     }
-    mat(out, in, *tmp1, *tmp2);
+    //mat(out, in, *tmp1, *tmp2);
+    mat(out, in); // FIXME temps for mixed prec solves
     
     // Save mattrix * vector tuning
     saveTuneCache();
@@ -855,50 +856,107 @@ namespace quda
     // it is assumed that the user wishes to perform a low prec initial pass of the
     // Krylov space. Once this lower precision pass has converged, we will switch back
     // to the higher prec of mat.
-    /*
+
+    profile.TPSTART(QUDA_PROFILE_COMPUTE);
+    
+    printfQuda("Prec matSloppy = %d Prec matPrecon = %d\n",
+	       matSloppy.Expose()->OpPrecision(), matPrecon.Expose()->OpPrecision());
+    
     int max_restarts_orig = max_restarts;
-    if(matSloppy.Expose()->Precision() < matPrecon.Expose()->Precision()) {
+    if(matSloppy.Expose()->OpPrecision() < matPrecon.Expose()->OpPrecision()) {
       if (getVerbosity() >= QUDA_VERBOSE) {
 	printfQuda("Sloppy operator has lower precision than the Precon operator.\n"
 		   "Performing lower precision solve\n");
       }
       // Copy the current Krylov space to a lower prec
       std::vector<ColorSpinorField*> kSpaceSloppy, rSloppy;      
-      precChangeKrylov(kSpace, kSpaceSloppy, r, rSloppy, matSloppy.Expose()->Precision());
+      precChangeKrylov(kSpace, kSpaceSloppy, r, rSloppy, matSloppy.Expose()->OpPrecision());
       
       printfQuda("Prec kSpaceSloppy = %d, rSloppy = %d, Prec matSloppy = %d\n",
 		 kSpaceSloppy[0]->Precision(),
 		 rSloppy[0]->Precision(),
-		 matSloppy.Expose()->Precision());
+		 matSloppy.Expose()->OpPrecision());
+      
       max_restarts = 1;
 
-      printfQuda("Prec kSpaceSloppy size = %d\n", (int)kSpaceSloppy.size());
+      printfQuda("kSpaceSloppy size = %d\n", (int)kSpaceSloppy.size());
       computeLanczosSolution(matSloppy, kSpaceSloppy, rSloppy);
-      printfQuda("Prec kSpaceSloppy size = %d\n", (int)kSpaceSloppy.size());
+      printfQuda("kSpaceSloppy size = %d\n", (int)kSpaceSloppy.size());
       // Copy the current Krylov space to the original prec and delete.
-      precChangeKrylov(kSpaceSloppy, kSpace, rSloppy, r, mat.Expose()->Precision());
+      precChangeKrylov(kSpaceSloppy, kSpace, rSloppy, r, mat.Expose()->OpPrecision());
       
       // Reset Stats
-      //num_converged = 0;
-      //num_keep = nEv;
-      //num_locked = 0;
-      //converged = false;
+      num_converged = 0;
+      num_keep = nEv;
+      num_locked = 0;
+      iter_keep = 0;
+      converged = false;
       max_restarts = max_restarts_orig;
       // Reset temps
-      if (tmp1) delete tmp1;
-      if (tmp2) delete tmp2;
-      delete rSloppy[0];
+      //if (tmp1) delete tmp1;
+      //if (tmp2) delete tmp2;
       
     } else {
       if (getVerbosity() >= QUDA_VERBOSE) {
-	printfQuda("Skipping sloppy operator solution\n");
+	printfQuda("Skipping Sloppy operator solution\n");
       }
     }
-    */
+
+    printfQuda("kSpace size = %d\n", (int)kSpace.size());
+    printfQuda("r size = %d\n", (int)r.size());
     
-    profile.TPSTART(QUDA_PROFILE_COMPUTE);
+    printfQuda("Prec matPrecon = %d Prec mat = %d\n",
+	       matPrecon.Expose()->OpPrecision(), mat.Expose()->OpPrecision());
+    
+    if(matPrecon.Expose()->OpPrecision() < mat.Expose()->OpPrecision()) {
+      if (getVerbosity() >= QUDA_VERBOSE) {
+	printfQuda("Precon operator has lower precision than the  operator.\n"
+		   "Performing lower precision solve\n");
+      }
+      // Copy the current Krylov space to a lower prec
+      std::vector<ColorSpinorField*> kSpacePrecon, rPrecon;      
+      precChangeKrylov(kSpace, kSpacePrecon, r, rPrecon, matPrecon.Expose()->OpPrecision());
+      
+      printfQuda("Prec kSpacePrecon = %d, rPrecon = %d, Prec matPrecon = %d\n",
+		 kSpacePrecon[0]->Precision(),
+		 rPrecon[0]->Precision(),
+		 matPrecon.Expose()->OpPrecision());
+      
+      max_restarts = 2;
+
+      printfQuda("kSpacePrecon size = %d\n", (int)kSpacePrecon.size());
+      computeLanczosSolution(matPrecon, kSpacePrecon, rPrecon);
+      printfQuda("kSpacePrecon size = %d\n", (int)kSpacePrecon.size());
+      // Copy the current Krylov space to the original prec and delete.
+      precChangeKrylov(kSpacePrecon, kSpace, rPrecon, r, mat.Expose()->OpPrecision());
+
+      printfQuda("kSpace size = %d\n", (int)kSpace.size());
+      printfQuda("r size = %d\n", (int)r.size());
+      
+      // Reset Stats
+      num_converged = 0;
+      num_keep = nEv;
+      num_locked = 0;
+      iter_keep = 0;
+      converged = false;
+      max_restarts = max_restarts_orig;
+      // Reset temps
+      //if (tmp1) delete tmp1;
+      //if (tmp2) delete tmp2;
+      
+    } else {
+      if (getVerbosity() >= QUDA_VERBOSE) {
+	printfQuda("Skipping Precon operator solution\n");
+      }
+    }
+
+    printfQuda("kSpace size = %d\n", (int)kSpace.size());
+    printfQuda("r size = %d\n", (int)r.size());
+    
     computeLanczosSolution(mat, kSpace, r);    
     profile.TPSTOP(QUDA_PROFILE_COMPUTE);
+
+    reorder(kSpace);
     
     if (getVerbosity() >= QUDA_DEBUG_VERBOSE)
       printfQuda("kSpace size at convergence/max restarts = %d\n", (int)kSpace.size());
@@ -980,7 +1038,8 @@ namespace quda
     // Convergence and locking criteria
     double mat_norm = 0.0;
     double epsilon = DBL_EPSILON;
-    QudaPrecision prec = kSpace[0]->Precision();
+    //QudaPrecision prec = kSpace[0]->Precision();
+    QudaPrecision prec = QUDA_DOUBLE_PRECISION;
     switch (prec) {
     case QUDA_DOUBLE_PRECISION:
       epsilon = DBL_EPSILON;
@@ -1022,7 +1081,7 @@ namespace quda
       iter_locked = 0;
       for (int i = 1; i < (nKr - num_locked); i++) {
         if (residua[i + num_locked] < epsilon * mat_norm) {
-          if (getVerbosity() >= QUDA_DEBUG_VERBOSE)
+          if (getVerbosity() >= QUDA_VERBOSE)
             printfQuda("**** Locking %d resid=%+.6e condition=%.6e ****\n", i, residua[i + num_locked],
                        epsilon * mat_norm);
           iter_locked = i;
@@ -1036,7 +1095,7 @@ namespace quda
       iter_converged = iter_locked;
       for (int i = iter_locked + 1; i < nKr - num_locked; i++) {
         if (residua[i + num_locked] < tol * mat_norm) {
-          if (getVerbosity() >= QUDA_DEBUG_VERBOSE)
+          if (getVerbosity() >= QUDA_VERBOSE)
             printfQuda("**** Converged %d resid=%+.6e condition=%.6e ****\n", i, residua[i + num_locked], tol * mat_norm);
           iter_converged = i;
         } else {
@@ -1073,10 +1132,8 @@ namespace quda
 
       // Check for convergence
       if (num_converged >= nConv) {
-        reorder(kSpace);
         converged = true;
       }
-
       restart_iter++;
     }
   }
@@ -1111,7 +1168,7 @@ namespace quda
     }
 
     // Orthogonalise r against the Krylov space
-    if (j > 0)
+    if (j > 0 && j == 0)
       for (int k = 0; k < 1; k++) blockOrthogonalize(v, res, j);
 
     // b_j = ||r||
