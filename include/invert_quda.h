@@ -561,10 +561,12 @@ namespace quda {
        @param[in] meta A sample ColorSpinorField with which to instantiate
        the eigensolver
        @param[in] mat The operator to eigensolve
+       @param[in] matSloppy The operator of sloppy prec
+       @param[in] matPrecon The operator of precon prec
        @param[in] Whether to compute the SVD
     */
-    void constructDeflationSpace(const ColorSpinorField &meta, const DiracMatrix &mat);
-
+    void constructDeflationSpace(const ColorSpinorField &meta, const DiracMatrix &mat, const DiracMatrix &matSloppy, const DiracMatrix &matPrecon);
+    
     /**
        @brief Destroy the allocated deflation space
     */

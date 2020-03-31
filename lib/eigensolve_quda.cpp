@@ -19,11 +19,13 @@ namespace quda
 {
 
   using namespace Eigen;
-
+  
   // Eigensolver class
   //-----------------------------------------------------------------------------
-  EigenSolver::EigenSolver(const DiracMatrix &mat, QudaEigParam *eig_param, TimeProfile &profile) :
+  EigenSolver::EigenSolver(const DiracMatrix &mat, const DiracMatrix &matSloppy, const DiracMatrix &matPrecon, QudaEigParam *eig_param, TimeProfile &profile) :
     mat(mat),
+    matSloppy(matSloppy),
+    matPrecon(matPrecon),
     eig_param(eig_param),
     profile(profile),
     tmp1(nullptr),
@@ -95,16 +97,16 @@ namespace quda
 
   // We bake the matrix operator 'mat' and the eigensolver parameters into the
   // eigensolver.
-  EigenSolver *EigenSolver::create(QudaEigParam *eig_param, const DiracMatrix &mat, TimeProfile &profile)
+  EigenSolver *EigenSolver::create(QudaEigParam *eig_param, const DiracMatrix &mat, const DiracMatrix &matSloppy, const DiracMatrix &matPrecon, TimeProfile &profile)
   {
     EigenSolver *eig_solver = nullptr;
-
+    
     switch (eig_param->eig_type) {
     case QUDA_EIG_IR_ARNOLDI: errorQuda("IR Arnoldi not implemented"); break;
     case QUDA_EIG_IR_LANCZOS: errorQuda("IR Lanczos not implemented"); break;
     case QUDA_EIG_TR_LANCZOS:
       if (getVerbosity() >= QUDA_VERBOSE) printfQuda("Creating TR Lanczos eigensolver\n");
-      eig_solver = new TRLM(mat, eig_param, profile);
+      eig_solver = new TRLM(mat, matSloppy, matPrecon, eig_param, profile);
       break;
     default: errorQuda("Invalid eig solver type");
     }
@@ -734,8 +736,8 @@ namespace quda
   //-----------------------------------------------------------------------------
 
   // Thick Restarted Lanczos Method constructor
-  TRLM::TRLM(const DiracMatrix &mat, QudaEigParam *eig_param, TimeProfile &profile) :
-    EigenSolver(mat, eig_param, profile)
+  TRLM::TRLM(const DiracMatrix &mat, const DiracMatrix &matSloppy, const DiracMatrix &matPrecon, QudaEigParam *eig_param, TimeProfile &profile) :
+    EigenSolver(mat, matSloppy, matPrecon, eig_param, profile)
   {
     bool profile_running = profile.isRunning(QUDA_PROFILE_INIT);
     if (!profile_running) profile.TPSTART(QUDA_PROFILE_INIT);
@@ -808,30 +810,6 @@ namespace quda
     for (int i = nConv; i < nEv; i++) evals.push_back(0.0);
     //---------------------------------------------------------------------------
 
-    // Convergence and locking criteria
-    double mat_norm = 0.0;
-    double epsilon = DBL_EPSILON;
-    QudaPrecision prec = kSpace[0]->Precision();
-    switch (prec) {
-    case QUDA_DOUBLE_PRECISION:
-      epsilon = DBL_EPSILON;
-      if (getVerbosity() >= QUDA_SUMMARIZE) printfQuda("Running Eigensolver in double precision\n");
-      break;
-    case QUDA_SINGLE_PRECISION:
-      epsilon = FLT_EPSILON;
-      if (getVerbosity() >= QUDA_SUMMARIZE) printfQuda("Running Eigensolver in single precision\n");
-      break;
-    case QUDA_HALF_PRECISION:
-      epsilon = 2e-3;
-      if (getVerbosity() >= QUDA_SUMMARIZE) printfQuda("Running Eigensolver in half precision\n");
-      break;
-    case QUDA_QUARTER_PRECISION:
-      epsilon = 5e-2;
-      if (getVerbosity() >= QUDA_SUMMARIZE) printfQuda("Running Eigensolver in quarter precision\n");
-      break;
-    default: errorQuda("Invalid precision %d", prec);
-    }
-
     // Begin TRLM Eigensolver computation
     //---------------------------------------------------------------------------
     if (getVerbosity() >= QUDA_SUMMARIZE) {
@@ -853,90 +831,13 @@ namespace quda
         printfQuda("a-max %f\n", eig_param->a_max);
       }
     }
-
+    
     profile.TPSTART(QUDA_PROFILE_COMPUTE);
 
-    // Loop over restart iterations.
-    while (restart_iter < max_restarts && !converged) {
-
-      for (int step = num_keep; step < nKr; step++) lanczosStep(kSpace, step);
-      iter += (nKr - num_keep);
-      if (getVerbosity() >= QUDA_DEBUG_VERBOSE) printfQuda("Restart %d complete\n", restart_iter + 1);
-
-      int arrow_pos = std::max(num_keep - num_locked + 1, 2);
-      // The eigenvalues are returned in the alpha array
-      profile.TPSTOP(QUDA_PROFILE_COMPUTE);
-      eigensolveFromArrowMat(num_locked, arrow_pos);
-      profile.TPSTART(QUDA_PROFILE_COMPUTE);
-
-      // mat_norm is updated.
-      for (int i = num_locked; i < nKr; i++)
-        if (fabs(alpha[i]) > mat_norm) mat_norm = fabs(alpha[i]);
-
-      // Locking check
-      iter_locked = 0;
-      for (int i = 1; i < (nKr - num_locked); i++) {
-        if (residua[i + num_locked] < epsilon * mat_norm) {
-          if (getVerbosity() >= QUDA_DEBUG_VERBOSE)
-            printfQuda("**** Locking %d resid=%+.6e condition=%.6e ****\n", i, residua[i + num_locked],
-                       epsilon * mat_norm);
-          iter_locked = i;
-        } else {
-          // Unlikely to find new locked pairs
-          break;
-        }
-      }
-
-      // Convergence check
-      iter_converged = iter_locked;
-      for (int i = iter_locked + 1; i < nKr - num_locked; i++) {
-        if (residua[i + num_locked] < tol * mat_norm) {
-          if (getVerbosity() >= QUDA_DEBUG_VERBOSE)
-            printfQuda("**** Converged %d resid=%+.6e condition=%.6e ****\n", i, residua[i + num_locked], tol * mat_norm);
-          iter_converged = i;
-        } else {
-          // Unlikely to find new converged pairs
-          break;
-        }
-      }
-
-      iter_keep = std::min(iter_converged + (nKr - num_converged) / 2, nKr - num_locked - 12);
-
-      profile.TPSTOP(QUDA_PROFILE_COMPUTE);
-      computeKeptRitz(kSpace);
-      profile.TPSTART(QUDA_PROFILE_COMPUTE);
-
-      num_converged = num_locked + iter_converged;
-      num_keep = num_locked + iter_keep;
-      num_locked += iter_locked;
-
-      if (getVerbosity() >= QUDA_VERBOSE) {
-        printfQuda("%04d converged eigenvalues at restart iter %04d\n", num_converged, restart_iter + 1);
-      }
-
-      if (getVerbosity() >= QUDA_DEBUG_VERBOSE) {
-        printfQuda("iter Conv = %d\n", iter_converged);
-        printfQuda("iter Keep = %d\n", iter_keep);
-        printfQuda("iter Lock = %d\n", iter_locked);
-        printfQuda("num_converged = %d\n", num_converged);
-        printfQuda("num_keep = %d\n", num_keep);
-        printfQuda("num_locked = %d\n", num_locked);
-        for (int i = 0; i < nKr; i++) {
-          printfQuda("Ritz[%d] = %.16e residual[%d] = %.16e\n", i, alpha[i], i, residua[i]);
-        }
-      }
-
-      // Check for convergence
-      if (num_converged >= nConv) {
-        reorder(kSpace);
-        converged = true;
-      }
-
-      restart_iter++;
-    }
-
+    computeLanczosSolution(mat, kSpace);
+    
     profile.TPSTOP(QUDA_PROFILE_COMPUTE);
-
+    
     if (getVerbosity() >= QUDA_DEBUG_VERBOSE)
       printfQuda("kSpace size at convergence/max restarts = %d\n", (int)kSpace.size());
     // Prune the Krylov space back to size when passed to eigensolver
@@ -1011,7 +912,113 @@ namespace quda
 
   // Thick Restart Member functions
   //---------------------------------------------------------------------------
-  void TRLM::lanczosStep(std::vector<ColorSpinorField *> v, int j)
+  void TRLM::computeLanczosSolution(const DiracMatrix &mat, std::vector<ColorSpinorField *> &kSpace) {
+    
+    // Convergence and locking criteria
+    double mat_norm = 0.0;
+    double epsilon = DBL_EPSILON;
+    QudaPrecision prec = kSpace[0]->Precision();
+    switch (prec) {
+    case QUDA_DOUBLE_PRECISION:
+      epsilon = DBL_EPSILON;
+      if (getVerbosity() >= QUDA_SUMMARIZE) printfQuda("Running Eigensolver in double precision\n");
+      break;
+    case QUDA_SINGLE_PRECISION:
+      epsilon = FLT_EPSILON;
+      if (getVerbosity() >= QUDA_SUMMARIZE) printfQuda("Running Eigensolver in single precision\n");
+      break;
+    case QUDA_HALF_PRECISION:
+      epsilon = 2e-3;
+      if (getVerbosity() >= QUDA_SUMMARIZE) printfQuda("Running Eigensolver in half precision\n");
+      break;
+    case QUDA_QUARTER_PRECISION:
+      epsilon = 5e-2;
+      if (getVerbosity() >= QUDA_SUMMARIZE) printfQuda("Running Eigensolver in quarter precision\n");
+      break;
+    default: errorQuda("Invalid precision %d", prec);
+    }
+
+    // Loop over restart iterations.
+    while (restart_iter < max_restarts && !converged) {
+
+      for (int step = num_keep; step < nKr; step++) lanczosStep(mat, kSpace, step);
+      iter += (nKr - num_keep);
+      if (getVerbosity() >= QUDA_DEBUG_VERBOSE) printfQuda("Restart %d complete\n", restart_iter + 1);
+
+      int arrow_pos = std::max(num_keep - num_locked + 1, 2);
+      // The eigenvalues are returned in the alpha array
+      profile.TPSTOP(QUDA_PROFILE_COMPUTE);
+      eigensolveFromArrowMat(num_locked, arrow_pos);
+      profile.TPSTART(QUDA_PROFILE_COMPUTE);
+
+      // mat_norm is updated.
+      for (int i = num_locked; i < nKr; i++)
+        if (fabs(alpha[i]) > mat_norm) mat_norm = fabs(alpha[i]);
+
+      // Locking check
+      iter_locked = 0;
+      for (int i = 1; i < (nKr - num_locked); i++) {
+        if (residua[i + num_locked] < epsilon * mat_norm) {
+          if (getVerbosity() >= QUDA_DEBUG_VERBOSE)
+            printfQuda("**** Locking %d resid=%+.6e condition=%.6e ****\n", i, residua[i + num_locked],
+                       epsilon * mat_norm);
+          iter_locked = i;
+        } else {
+          // Unlikely to find new locked pairs
+          break;
+        }
+      }
+
+      // Convergence check
+      iter_converged = iter_locked;
+      for (int i = iter_locked + 1; i < nKr - num_locked; i++) {
+        if (residua[i + num_locked] < tol * mat_norm) {
+          if (getVerbosity() >= QUDA_DEBUG_VERBOSE)
+            printfQuda("**** Converged %d resid=%+.6e condition=%.6e ****\n", i, residua[i + num_locked], tol * mat_norm);
+          iter_converged = i;
+        } else {
+          // Unlikely to find new converged pairs
+          break;
+        }
+      }
+
+      iter_keep = std::min(iter_converged + (nKr - num_converged) / 2, nKr - num_locked - 12);
+
+      profile.TPSTOP(QUDA_PROFILE_COMPUTE);
+      computeKeptRitz(kSpace);
+      profile.TPSTART(QUDA_PROFILE_COMPUTE);
+
+      num_converged = num_locked + iter_converged;
+      num_keep = num_locked + iter_keep;
+      num_locked += iter_locked;
+
+      if (getVerbosity() >= QUDA_VERBOSE) {
+        printfQuda("%04d converged eigenvalues at restart iter %04d\n", num_converged, restart_iter + 1);
+      }
+
+      if (getVerbosity() >= QUDA_DEBUG_VERBOSE) {
+        printfQuda("iter Conv = %d\n", iter_converged);
+        printfQuda("iter Keep = %d\n", iter_keep);
+        printfQuda("iter Lock = %d\n", iter_locked);
+        printfQuda("num_converged = %d\n", num_converged);
+        printfQuda("num_keep = %d\n", num_keep);
+        printfQuda("num_locked = %d\n", num_locked);
+        for (int i = 0; i < nKr; i++) {
+          printfQuda("Ritz[%d] = %.16e residual[%d] = %.16e\n", i, alpha[i], i, residua[i]);
+        }
+      }
+
+      // Check for convergence
+      if (num_converged >= nConv) {
+        reorder(kSpace);
+        converged = true;
+      }
+
+      restart_iter++;
+    }
+  }
+  
+  void TRLM::lanczosStep(const DiracMatrix &mat, std::vector<ColorSpinorField *> &v, int j)
   {
     // Compute r = A * v_j - b_{j-i} * v_{j-1}
     // r = A * v_j

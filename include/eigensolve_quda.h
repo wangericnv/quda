@@ -17,6 +17,8 @@ namespace quda
 
 protected:
     const DiracMatrix &mat;
+    const DiracMatrix &matSloppy;
+    const DiracMatrix &matPrecon;
     QudaEigParam *eig_param;
     TimeProfile &profile;
 
@@ -57,11 +59,11 @@ protected:
 
 public:
     /**
-       @brief Constructor for base Eigensolver class
-       @param eig_param MGParam struct that defines all meta data
+       @brief Constructor for base Eigensolver class 
+      @param eig_param MGParam struct that defines all meta data
        @param profile Timeprofile instance used to profile
     */
-    EigenSolver(const DiracMatrix &mat, QudaEigParam *eig_param, TimeProfile &profile);
+    EigenSolver(const DiracMatrix &mat, const DiracMatrix &matSloppy, const DiracMatrix &matPrecon, QudaEigParam *eig_param, TimeProfile &profile);
 
     /**
        Destructor for EigenSolver class.
@@ -75,18 +77,20 @@ public:
 
     /**
        @brief Computes the eigen decomposition for the operator passed to create.
-       @param kSpace The converged eigenvectors
-       @param evals The converged eigenvalues
+       @param[in] kSpace The converged eigenvectors
+       @param[in] evals The converged eigenvalues
      */
     virtual void operator()(std::vector<ColorSpinorField *> &kSpace, std::vector<Complex> &evals) = 0;
 
     /**
        @brief Creates the eigensolver using the parameters given and the matrix.
        @param eig_param The eigensolver parameters
-       @param mat The operator to solve
+       @param mat The operator of desired precision to solve
+       @param matSloppy The operator of sloppy precision
+       @param matPrecon The operator of precondionter precision
        @param profile Time Profile
-     */
-    static EigenSolver *create(QudaEigParam *eig_param, const DiracMatrix &mat, TimeProfile &profile);
+    */
+    static EigenSolver *create(QudaEigParam *eig_param, const DiracMatrix &mat, const DiracMatrix &matSloppy, const DiracMatrix &matPrecon, TimeProfile &profile);
 
     /**
        @brief Applies the specified matVec operation:
@@ -288,11 +292,13 @@ public:
 public:
     /**
        @brief Constructor for Thick Restarted Eigensolver class
+       @param mat The operator of desired precision to solve
+       @param matSloppy The operator of sloppy precision
+       @param matPrecon The operator of precondionter precision
        @param eig_param The eigensolver parameters
-       @param mat The operator to solve
        @param profile Time Profile
     */
-    TRLM(const DiracMatrix &mat, QudaEigParam *eig_param, TimeProfile &profile);
+    TRLM(const DiracMatrix &mat, const DiracMatrix &matSloppy, const DiracMatrix &matPrecon, QudaEigParam *eig_param, TimeProfile &profile);
 
     /**
        @brief Destructor for Thick Restarted Eigensolver class
@@ -317,13 +323,21 @@ public:
        @param[in] evals Computed eigenvalues
     */
     void operator()(std::vector<ColorSpinorField *> &kSpace, std::vector<Complex> &evals);
-
+    
+    /**
+       @brief Applies the TRLM algorithm using the mat operator.
+       @param[in] mat Matrix operator
+       @param[in] kSpace The Krylov space
+    */
+    void computeLanczosSolution(const DiracMatrix &mat, std::vector<ColorSpinorField *> &kSpace);
+    
     /**
        @brief Lanczos step: extends the Kylov space.
+       @param[in] mat The operator to use
        @param[in] v Vector space
        @param[in] j Index of vector being computed
     */
-    void lanczosStep(std::vector<ColorSpinorField *> v, int j);
+    void lanczosStep(const DiracMatrix &mat, std::vector<ColorSpinorField *> &v, int j);
 
     /**
        @brief Reorder the Krylov space by eigenvalue
