@@ -126,7 +126,7 @@ namespace quda
       if (!tmp2) tmp2 = ColorSpinorField::Create(param);
     }
     mat(out, in, *tmp1, *tmp2);
-
+    
     // Save mattrix * vector tuning
     saveTuneCache();
   }
@@ -239,6 +239,32 @@ namespace quda
     saveTuneCache();
   }
 
+  void EigenSolver::precChangeKrylov(std::vector<ColorSpinorField *> &vecs_old, std::vector<ColorSpinorField *> &vecs_new, std::vector<ColorSpinorField *> &r_old, std::vector<ColorSpinorField *> &r_new, QudaPrecision prec_new)
+  {
+    ColorSpinorParam csParamNew(*vecs_old[0]);    
+    csParamNew.setPrecision(prec_new);
+    
+    int size = (int)vecs_old.size();
+    vecs_new.reserve(size);
+    for(int i=0; i<size; i++) {
+      // Create new vector
+      vecs_new.push_back(ColorSpinorField::Create(csParamNew));
+      // Copy from old prec to new prec
+      *vecs_new[i] = *vecs_old[i];
+      // delete old vector
+      delete vecs_old[i];
+    }
+    vecs_old.resize(0);
+    
+    // Do the same for the residual vector.
+    r_new.push_back(ColorSpinorField::Create(csParamNew));
+    *r_new[0] = *r_old[0];
+    delete r_old[0];
+    r_old.resize(0);
+  }
+  
+  
+  
   // Orthogonalise r against V_[j]
   Complex EigenSolver::blockOrthogonalize(std::vector<ColorSpinorField *> vecs, std::vector<ColorSpinorField *> rvec,
                                           int j)
@@ -446,9 +472,9 @@ namespace quda
     if (size > (int)evecs.size()) errorQuda("Requesting %d eigenvectors with only storage allocated for %lu", size, evecs.size());
     if (size > (int)evals.size()) errorQuda("Requesting %d eigenvalues with only storage allocated for %lu", size, evals.size());
 
-    ColorSpinorParam csParam(*evecs[0]);
+    ColorSpinorParam csParamClone(*evecs[0]);
     std::vector<ColorSpinorField *> temp;
-    temp.push_back(ColorSpinorField::Create(csParam));
+    temp.push_back(ColorSpinorField::Create(csParamClone));
 
     for (int i = 0; i < size; i++) {
       // r = A * v_i
@@ -714,15 +740,8 @@ namespace quda
     for (int i = 0; i < nConv; i++) { vecs_ptr.push_back(kSpace[i]); }
     loadVectors(vecs_ptr, eig_param->vec_infile);
 
-    // Create the device side residual vector by cloning
-    // the kSpace passed to the function.
-    ColorSpinorParam csParam(*kSpace[0]);
-    csParam.create = QUDA_ZERO_FIELD_CREATE;
-    r.push_back(ColorSpinorField::Create(csParam));
-
     // Error estimates (residua) given by ||A*vec - lambda*vec||
     computeEvals(mat, kSpace, evals);
-    delete r[0];
   }
 
   EigenSolver::~EigenSolver()
@@ -798,13 +817,13 @@ namespace quda
 
     // Create a device side residual vector by cloning
     // the kSpace passed to the function.
-    ColorSpinorParam csParamClone(*kSpace[0]);
-    csParam = csParamClone;
+    ColorSpinorParam csParamMat(*kSpace[0]);
     // Increase Krylov space to nKr+1 one vector, create residual
     kSpace.reserve(nKr + 1);
-    for (int i = nConv; i < nKr + 1; i++) kSpace.push_back(ColorSpinorField::Create(csParam));
-    csParam.create = QUDA_ZERO_FIELD_CREATE;
-    r.push_back(ColorSpinorField::Create(csParam));
+    for (int i = nConv; i < nKr + 1; i++) kSpace.push_back(ColorSpinorField::Create(csParamMat));
+    csParamMat.create = QUDA_ZERO_FIELD_CREATE;
+    std::vector<ColorSpinorField*> r;
+    r.push_back(ColorSpinorField::Create(csParamMat));
     // Increase evals space to nEv
     evals.reserve(nEv);
     for (int i = nConv; i < nEv; i++) evals.push_back(0.0);
@@ -831,11 +850,54 @@ namespace quda
         printfQuda("a-max %f\n", eig_param->a_max);
       }
     }
+
+    // Test for operator of lower prec than mat. If a lower prec operator is detected,
+    // it is assumed that the user wishes to perform a low prec initial pass of the
+    // Krylov space. Once this lower precision pass has converged, we will switch back
+    // to the higher prec of mat.
+    /*
+    int max_restarts_orig = max_restarts;
+    if(matSloppy.Expose()->Precision() < matPrecon.Expose()->Precision()) {
+      if (getVerbosity() >= QUDA_VERBOSE) {
+	printfQuda("Sloppy operator has lower precision than the Precon operator.\n"
+		   "Performing lower precision solve\n");
+      }
+      // Copy the current Krylov space to a lower prec
+      std::vector<ColorSpinorField*> kSpaceSloppy, rSloppy;      
+      precChangeKrylov(kSpace, kSpaceSloppy, r, rSloppy, matSloppy.Expose()->Precision());
+      
+      printfQuda("Prec kSpaceSloppy = %d, rSloppy = %d, Prec matSloppy = %d\n",
+		 kSpaceSloppy[0]->Precision(),
+		 rSloppy[0]->Precision(),
+		 matSloppy.Expose()->Precision());
+      max_restarts = 1;
+
+      printfQuda("Prec kSpaceSloppy size = %d\n", (int)kSpaceSloppy.size());
+      computeLanczosSolution(matSloppy, kSpaceSloppy, rSloppy);
+      printfQuda("Prec kSpaceSloppy size = %d\n", (int)kSpaceSloppy.size());
+      // Copy the current Krylov space to the original prec and delete.
+      precChangeKrylov(kSpaceSloppy, kSpace, rSloppy, r, mat.Expose()->Precision());
+      
+      // Reset Stats
+      //num_converged = 0;
+      //num_keep = nEv;
+      //num_locked = 0;
+      //converged = false;
+      max_restarts = max_restarts_orig;
+      // Reset temps
+      if (tmp1) delete tmp1;
+      if (tmp2) delete tmp2;
+      delete rSloppy[0];
+      
+    } else {
+      if (getVerbosity() >= QUDA_VERBOSE) {
+	printfQuda("Skipping sloppy operator solution\n");
+      }
+    }
+    */
     
     profile.TPSTART(QUDA_PROFILE_COMPUTE);
-
-    computeLanczosSolution(mat, kSpace);
-    
+    computeLanczosSolution(mat, kSpace, r);    
     profile.TPSTOP(QUDA_PROFILE_COMPUTE);
     
     if (getVerbosity() >= QUDA_DEBUG_VERBOSE)
@@ -872,8 +934,6 @@ namespace quda
       computeEvals(mat, kSpace, evals);
     }
 
-    // Local clean-up
-    delete r[0];
 
     // Only save if outfile is defined
     if (strcmp(eig_param->vec_outfile, "") != 0) {
@@ -895,6 +955,8 @@ namespace quda
       printfQuda("*****************************\n");
     }
 
+    delete r[0];
+    
     // Save TRLM tuning
     saveTuneCache();
     
@@ -904,6 +966,7 @@ namespace quda
   // Destructor
   TRLM::~TRLM()
   {
+    // Local clean-up
     ritz_mat.clear();
     ritz_mat.shrink_to_fit();
     host_free(alpha);
@@ -912,7 +975,7 @@ namespace quda
 
   // Thick Restart Member functions
   //---------------------------------------------------------------------------
-  void TRLM::computeLanczosSolution(const DiracMatrix &mat, std::vector<ColorSpinorField *> &kSpace) {
+  void TRLM::computeLanczosSolution(const DiracMatrix &mat, std::vector<ColorSpinorField *> &kSpace, std::vector<ColorSpinorField *> &res) {
     
     // Convergence and locking criteria
     double mat_norm = 0.0;
@@ -941,7 +1004,7 @@ namespace quda
     // Loop over restart iterations.
     while (restart_iter < max_restarts && !converged) {
 
-      for (int step = num_keep; step < nKr; step++) lanczosStep(mat, kSpace, step);
+      for (int step = num_keep; step < nKr; step++) lanczosStep(mat, kSpace, res, step);
       iter += (nKr - num_keep);
       if (getVerbosity() >= QUDA_DEBUG_VERBOSE) printfQuda("Restart %d complete\n", restart_iter + 1);
 
@@ -1018,23 +1081,23 @@ namespace quda
     }
   }
   
-  void TRLM::lanczosStep(const DiracMatrix &mat, std::vector<ColorSpinorField *> &v, int j)
+  void TRLM::lanczosStep(const DiracMatrix &mat, std::vector<ColorSpinorField *> &v, std::vector<ColorSpinorField *> &res, int j)
   {
     // Compute r = A * v_j - b_{j-i} * v_{j-1}
     // r = A * v_j
 
-    chebyOp(mat, *r[0], *v[j]);
+    chebyOp(mat, *res[0], *v[j]);
 
     // a_j = v_j^dag * r
-    alpha[j] = blas::reDotProduct(*v[j], *r[0]);
+    alpha[j] = blas::reDotProduct(*v[j], *res[0]);
 
     // r = r - a_j * v_j
-    blas::axpy(-alpha[j], *v[j], *r[0]);
+    blas::axpy(-alpha[j], *v[j], *res[0]);
 
     int start = (j > num_keep) ? j - 1 : 0;
 
     if (j - start > 0) {
-      std::vector<ColorSpinorField *> r_ {r[0]};
+      std::vector<ColorSpinorField *> res_ {res[0]};
       std::vector<double> beta_;
       beta_.reserve(j - start);
       std::vector<ColorSpinorField *> v_;
@@ -1044,25 +1107,25 @@ namespace quda
         v_.push_back(v[i]);
       }
       // r = r - b_{j-1} * v_{j-1}
-      blas::axpy(beta_.data(), v_, r_);
+      blas::axpy(beta_.data(), v_, res_);
     }
 
     // Orthogonalise r against the Krylov space
     if (j > 0)
-      for (int k = 0; k < 1; k++) blockOrthogonalize(v, r, j);
+      for (int k = 0; k < 1; k++) blockOrthogonalize(v, res, j);
 
     // b_j = ||r||
-    beta[j] = sqrt(blas::norm2(*r[0]));
+    beta[j] = sqrt(blas::norm2(*res[0]));
 
     // Prepare next step.
     // v_{j+1} = r / b_j
     blas::zero(*v[j + 1]);
-    blas::axpy(1.0 / beta[j], *r[0], *v[j + 1]);
+    blas::axpy(1.0 / beta[j], *res[0], *v[j + 1]);
 
     // Save Lanczos step tuning
     saveTuneCache();
   }
-
+  
   void TRLM::reorder(std::vector<ColorSpinorField *> &kSpace)
   {
     int i = 0;
@@ -1162,11 +1225,13 @@ namespace quda
 
     // If we have memory availible, do the entire rotation
     if (batched_rotate <= 0 || batched_rotate >= iter_keep) {
+      ColorSpinorParam csParamClone(*kSpace[0]);
+      csParamClone.create = QUDA_ZERO_FIELD_CREATE;
       if ((int)kSpace.size() < offset + iter_keep) {
         if (getVerbosity() >= QUDA_VERBOSE) printfQuda("Resizing kSpace to %d vectors\n", offset + iter_keep);
         kSpace.reserve(offset + iter_keep);
         for (int i = kSpace.size(); i < offset + iter_keep; i++) {
-          kSpace.push_back(ColorSpinorField::Create(csParam));
+	  kSpace.push_back(ColorSpinorField::Create(csParamClone));
         }
       }
 
@@ -1202,10 +1267,12 @@ namespace quda
       bool do_batch_remainder = (batch_size_r != 0 ? true : false);
 
       if ((int)kSpace.size() < offset + batch_size) {
+	ColorSpinorParam csParamClone(*kSpace[0]);
+	csParamClone.create = QUDA_ZERO_FIELD_CREATE;
         if (getVerbosity() >= QUDA_VERBOSE) printfQuda("Resizing kSpace to %d vectors\n", offset + batch_size);
         kSpace.reserve(offset + batch_size);
         for (int i = kSpace.size(); i < offset + batch_size; i++) {
-          kSpace.push_back(ColorSpinorField::Create(csParam));
+	  kSpace.push_back(ColorSpinorField::Create(csParamClone));
         }
       }
 

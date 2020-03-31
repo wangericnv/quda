@@ -49,7 +49,6 @@ protected:
     double *residua;
 
     // Device side vector workspace
-    std::vector<ColorSpinorField *> r;
     std::vector<ColorSpinorField *> d_vecs_tmp;
 
     ColorSpinorField *tmp1;
@@ -119,9 +118,19 @@ public:
     */
     double estimateChebyOpMax(const DiracMatrix &mat, ColorSpinorField &out, ColorSpinorField &in);
 
+
     /**
-       @brief Orthogonalise input vector r against
-       vector space v using block-BLAS
+       @brief Change the precision of the Krylov space
+       @param[in] vecs_old The Krylov space to be copy
+       @param[in] vecs_new The Krylov Space of new precision
+       @param[in] r_old The residual to be copy
+       @param[in] r_new The residual of new precision
+       @param[in] prec_new The new precision
+    */
+    void precChangeKrylov(std::vector<ColorSpinorField *> &vecs_old, std::vector<ColorSpinorField *> &vecs_new, std::vector<ColorSpinorField *> &r_old, std::vector<ColorSpinorField *> &r_new, QudaPrecision prec_new);
+    
+    /**
+       @brief Orthogonalise input vector r against vector space v using block-BLAS
        @param[out] Sum of inner products
        @param[in] v Vector space
        @param[in] r Vector to be orthogonalised
@@ -314,9 +323,6 @@ public:
     double *alpha;
     double *beta;
 
-    // Used to clone vectors and resize arrays.
-    ColorSpinorParam csParam;
-
     /**
        @brief Compute eigenpairs
        @param[in] kSpace Krylov vector space
@@ -328,16 +334,18 @@ public:
        @brief Applies the TRLM algorithm using the mat operator.
        @param[in] mat Matrix operator
        @param[in] kSpace The Krylov space
+       @param[in] kSpace The residual vector
     */
-    void computeLanczosSolution(const DiracMatrix &mat, std::vector<ColorSpinorField *> &kSpace);
+    void computeLanczosSolution(const DiracMatrix &mat, std::vector<ColorSpinorField *> &kSpace, std::vector<ColorSpinorField *> &res);
     
     /**
        @brief Lanczos step: extends the Kylov space.
        @param[in] mat The operator to use
        @param[in] v Vector space
+       @param[in] v residual vector
        @param[in] j Index of vector being computed
     */
-    void lanczosStep(const DiracMatrix &mat, std::vector<ColorSpinorField *> &v, int j);
+    void lanczosStep(const DiracMatrix &mat, std::vector<ColorSpinorField *> &v, std::vector<ColorSpinorField *> &res, int j);
 
     /**
        @brief Reorder the Krylov space by eigenvalue
