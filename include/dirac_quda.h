@@ -1635,6 +1635,8 @@ public:
     SolverParam *solverParam_;
     CG *cg_;
     DiracMatrix *matUnconst_;
+    DiracMatrix *matUnconstSlop_;
+    DiracMatrix *matUnconstPrec_;
     std::vector<ColorSpinorField *> y_hat;
     JD *eigSlvr;
     double tol;

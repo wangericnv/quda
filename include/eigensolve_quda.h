@@ -9,6 +9,7 @@ namespace quda
 {
   // Forward declarations for the JD eigensolver
   class GCR;
+  class Solver;
 
   // Local enum for the LU axpy block type
   enum blockType { PENCIL, LOWER_TRI, UPPER_TRI };
@@ -417,6 +418,8 @@ public:
 
     SolverParam *solverParam;
     SolverParam *solverParamPrec;
+    SolverParam *solverParamMG;
+    Solver *mg_solve;
     CG *cg;
     GCR *gcrPrec;
 
@@ -435,6 +438,8 @@ public:
     std::vector<ColorSpinorField *> u_lowprec;
 
     DiracPrecProjCorr *mmPP;
+    DiracPrecProjCorr *mmPPSloppy;
+    DiracPrecProjCorr *mmPPPrecon;
 
     int k;
     int m;
@@ -475,7 +480,9 @@ public:
        @param[in] kp Number of vectors to project against
        @param[in] projSpace Space to project against
     */
-    void invertProjMat(const DiracMatrix &mat, ColorSpinorField &x, ColorSpinorField &b, QudaVerbosity verb,
+    //void invertProjMat(const DiracMatrix &mat, ColorSpinorField &x, ColorSpinorField &b, QudaVerbosity verb,
+    //                   int kp, std::vector<ColorSpinorField *> &projSpace);
+    void invertProjMat(ColorSpinorField &x, ColorSpinorField &b, QudaVerbosity verb,
                        int kp, std::vector<ColorSpinorField *> &projSpace);
 
     /**

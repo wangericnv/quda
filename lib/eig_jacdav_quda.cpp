@@ -44,7 +44,8 @@ namespace quda
     profile_mat_corr_eq_invs = new TimeProfile("profile_mat_corr_eq_invs");
 
     outer_prec_lab = mat.Expose()->OpPrecision();
-    inner_prec_lab = matPrecon.Expose()->OpPrecision();
+    //inner_prec_lab = matPrecon.Expose()->OpPrecision();
+    inner_prec_lab = outer_prec_lab;
 
     QudaInvertParam refineparam = *eig_param->invert_param;
     refineparam.cuda_prec_sloppy = eig_param->invert_param->cuda_prec_refinement_sloppy;
@@ -55,20 +56,45 @@ namespace quda
     solverParam->delta = eig_param->invert_param->reliable_delta_refinement;
     // disable preconditioning on solvers used in the correction equation
     solverParam->inv_type_precondition = QUDA_INVALID_INVERTER;
+
     solverParam->precision = inner_prec_lab;
     solverParam->precision_sloppy = inner_prec_lab;
     solverParam->precision_precondition = inner_prec_lab;
+    //solverParam->precision = mat.Expose()->OpPrecision();
+    //solverParam->precision_sloppy = matSloppy.Expose()->OpPrecision();
+    //solverParam->precision_precondition = matPrecon.Expose()->OpPrecision();
 
     solverParamPrec = new SolverParam(*solverParam);
     solverParamPrec->maxiter = 5;
     solverParamPrec->tol = 1e-2;
 
-    mmPP = new DiracPrecProjCorr(matPrecon.Expose());
+    //eig_param->invert_param->tol = corr_eq_tol;
+    //eig_param->invert_param->maxiter = corr_eq_maxiter;
+    //solverParamMG = new SolverParam(*solverParam);
+    solverParamMG = new SolverParam(*eig_param->invert_param);
+    //solverParamMG->maxiter = 5;
+    //solverParamMG->tol = 1e-2;
+    //solverParamMG->inv_type_precondition = QUDA_MG_INVERTER;
+    solverParamMG->tol = corr_eq_tol;
+    solverParamMG->maxiter = corr_eq_maxiter;
+    solverParamMG->use_init_guess = QUDA_USE_INIT_GUESS_YES;
+
+    mmPP = new DiracPrecProjCorr(mat.Expose());
+    mmPPSloppy = new DiracPrecProjCorr(matSloppy.Expose());
+    mmPPPrecon = new DiracPrecProjCorr(matPrecon.Expose());
 
     // Solvers used in the correction equation
-    cg = new CG(const_cast<DiracMatrix &>(matPrecon), const_cast<DiracMatrix &>(matPrecon), const_cast<DiracMatrix &>(matPrecon),
+    //cg = new CG(const_cast<DiracMatrix &>(matPrecon), const_cast<DiracMatrix &>(matPrecon), const_cast<DiracMatrix &>(matPrecon),
+    //            *solverParam, *profile_mat_corr_eq_invs);
+    //gcrPrec = new GCR(*mmPP, *mmPP, *mmPP, *solverParamPrec, *profile_corr_eq_invs);
+
+    cg = new CG(const_cast<DiracMatrix &>(mat), const_cast<DiracMatrix &>(mat), const_cast<DiracMatrix &>(mat),
                 *solverParam, *profile_mat_corr_eq_invs);
     gcrPrec = new GCR(*mmPP, *mmPP, *mmPP, *solverParamPrec, *profile_corr_eq_invs);
+
+    mg_solve = Solver::create(*solverParamMG,
+                              const_cast<DiracMatrix &>(mat), const_cast<DiracMatrix &>(matSloppy), const_cast<DiracMatrix &>(matPrecon),
+                              *profile_mat_corr_eq_invs);
 
     if (!profile_running) profile.TPSTOP(QUDA_PROFILE_INIT);
   }
@@ -243,13 +269,16 @@ namespace quda
         *(u_lowprec[0]) = *(u[0]);
 
         // solving the correction equation
-        invertProjMat(matPrecon, *t_lowprec[0], *r_lowprec[0], QUDA_SILENT, 1, u_lowprec);
+        //invertProjMat(matPrecon, *t_lowprec[0], *r_lowprec[0], QUDA_SILENT, 1, u_lowprec);
+        invertProjMat(*t_lowprec[0], *r_lowprec[0], QUDA_SILENT, 1, u_lowprec);
 
         // switch back to higher precision
         *(t[0]) = *(t_lowprec[0]);
       } else {
         // solving the correction equation
-        invertProjMat(matPrecon, *t[0], *r[0], QUDA_SILENT, 1, u);
+        //invertProjMat(matPrecon, *t[0], *r[0], QUDA_SILENT, 1, u);
+        //invertProjMat(mat, *t[0], *r[0], QUDA_SILENT, 1, u);
+        invertProjMat(*t[0], *r[0], QUDA_SILENT, 1, u);
       }
 
       iter++;
@@ -334,8 +363,10 @@ namespace quda
 
     delete solverParam;
     delete solverParamPrec;
+    delete solverParamMG;
     delete gcrPrec;
     delete cg;
+    delete mg_solve;
 
     delete mmPP;
   }
@@ -343,39 +374,57 @@ namespace quda
   // JD Member functions
   //---------------------------------------------------------------------------
 
-  void JD::invertProjMat(const DiracMatrix &matPrecon, ColorSpinorField &x, ColorSpinorField &b, QudaVerbosity verb,
+  //void JD::invertProjMat(const DiracMatrix &matPrecon, ColorSpinorField &x, ColorSpinorField &b, QudaVerbosity verb,
+  //                       const int kp, std::vector<ColorSpinorField *> &projSpace)
+  void JD::invertProjMat(ColorSpinorField &x, ColorSpinorField &b, QudaVerbosity verb,
                          const int kp, std::vector<ColorSpinorField *> &projSpace)
   {
     std::vector<ColorSpinorField *> &qSpace = projSpace;
 
     // Buffers for the shifts of the matrix operators
-    double bare_shift;
+    double bare_shift, bare_shift_slop, bare_shift_prec;
 
     // 1. solve for Qhat in K * Qhat = qSpace, with K a good (but 'cheap') preconditioner
 
     int size_ps = kp;
 
     // Casting away contractual constness
-    DiracMatrix &mat_unconst = const_cast<DiracMatrix &>(matPrecon);
+    //DiracMatrix &mat_unconst = const_cast<DiracMatrix &>(matPrecon);
+    DiracMatrix &mat_unconst = const_cast<DiracMatrix &>(mat);
+    DiracMatrix &mat_unconst_slop = const_cast<DiracMatrix &>(matSloppy);
+    DiracMatrix &mat_unconst_prec = const_cast<DiracMatrix &>(matPrecon);
 
     //csParam.create = QUDA_COPY_FIELD_CREATE;
     //---------------------------------------------
     // Switching to the appropriate shift for JD
+
     bare_shift = mat_unconst.shift;
     mat_unconst.shift = bare_shift - theta;
+
+    bare_shift_slop = mat_unconst_slop.shift;
+    mat_unconst_slop.shift = bare_shift_slop - theta;
+
+    bare_shift_prec = mat_unconst_prec.shift;
+    mat_unconst_prec.shift = bare_shift_prec - theta;
+
+    if (getVerbosity() >= QUDA_SUMMARIZE) {
+      printfQuda("MG solve 1:\n");
+    }
 
     if (size_ps > 1) {
       for (int i = 0; i < size_ps; i++) {
         blas::copy(*Qhat[i], *qSpace[i]);
-        K(*cg, corr_eq_tol, corr_eq_maxiter, QUDA_SILENT, *solverParam, *Qhat[i], *qSpace[i]);
+        K(*cg, corr_eq_tol, corr_eq_maxiter, QUDA_SILENT, *solverParamMG, *Qhat[i], *qSpace[i]);
       }
     } else {
       blas::copy(*Qhat[0], *qSpace[0]);
-      K(*cg, corr_eq_tol, corr_eq_maxiter, QUDA_SILENT, *solverParam, *Qhat[0], *qSpace[0]);
+      K(*cg, corr_eq_tol, corr_eq_maxiter, QUDA_SILENT, *solverParamMG, *Qhat[0], *qSpace[0]);
     }
 
     // and, switching back the shift parameters
     mat_unconst.shift = bare_shift;
+    mat_unconst_slop.shift = bare_shift_slop;
+    mat_unconst_prec.shift = bare_shift_prec;
     //---------------------------------------------
 
     //return;
@@ -409,16 +458,29 @@ namespace quda
 
     //---------------------------------------------
     // Switching to the appropriate shift for JD
+
     bare_shift = mat_unconst.shift;
     mat_unconst.shift = bare_shift - theta;
 
+    bare_shift_slop = mat_unconst_slop.shift;
+    mat_unconst_slop.shift = bare_shift_slop - theta;
+
+    bare_shift_prec = mat_unconst_prec.shift;
+    mat_unconst_prec.shift = bare_shift_prec - theta;
+
     // <r_tilde> is "r-hat" for a few of the upcoming lines
 
+    if (getVerbosity() >= QUDA_SUMMARIZE) {
+      printfQuda("MG solve 2:\n");
+    }
+
     blas::copy(*r_tilde[0], b);
-    K(*cg, corr_eq_tol, corr_eq_maxiter, QUDA_SILENT, *solverParam, *r_tilde[0], b);
+    K(*cg, corr_eq_tol, corr_eq_maxiter, QUDA_SILENT, *solverParamMG, *r_tilde[0], b);
 
     // and, switching back the shift parameters
     mat_unconst.shift = bare_shift;
+    mat_unconst_slop.shift = bare_shift_slop;
+    mat_unconst_prec.shift = bare_shift_prec;
     //---------------------------------------------
 
     if (size_ps > 1) {
@@ -441,8 +503,12 @@ namespace quda
     mmPP->theta = theta;
     mmPP->Mproj = M;
     mmPP->Qhat = Qhat;
-    mmPP->solverParam_ = solverParam;
+    mmPP->solverParam_ = solverParamMG;
+
     mmPP->matUnconst_ = &mat_unconst;
+    mmPP->matUnconstSlop_ = &mat_unconst_slop;
+    mmPP->matUnconstPrec_ = &mat_unconst_prec;
+
     mmPP->cg_ = cg;
     mmPP->eigSlvr = this;
     mmPP->k = size_ps;
@@ -467,7 +533,12 @@ namespace quda
     int maxiter_buff = slvrPrm.maxiter;
     slvrPrm.maxiter = maxiter;
 
-    cgw(x, b);
+    //cgw(x, b);
+    setVerbosity(QUDA_SILENT);
+    (*mg_solve)(x, b);
+    setVerbosity(verbTmp);
+
+    //invertQuda(x, b, eig_param->invert_param);
 
     slvrPrm.tol = tol_buff;
     slvrPrm.maxiter = maxiter_buff;
@@ -680,7 +751,11 @@ namespace quda
 
     // unpacking some attributes
     SolverParam &solverParam = *(mmPP.solverParam_);
+
     DiracMatrix &matUnconst = *(mmPP.matUnconst_);
+    DiracMatrix &matUnconstSlop = *(mmPP.matUnconstSlop_);
+    DiracMatrix &matUnconstPrec = *(mmPP.matUnconstPrec_);
+
     CG &cgx = *(mmPP.cg_);
 
     // 1. y = (A - \theta I)v
@@ -692,15 +767,30 @@ namespace quda
 
     blas::copy(*(mmPP.y_hat[0]), out);
 
+    double bare_shift, bare_shift_slop, bare_shift_prec;
+
     //---------------------------------------------
     // Switching to the appropriate shift for JD
-    double bare_shift = matUnconst.shift;
+
+    bare_shift = matUnconst.shift;
     matUnconst.shift = bare_shift - mmPP.theta;
+
+    bare_shift_slop = matUnconstSlop.shift;
+    matUnconstSlop.shift = bare_shift_slop - mmPP.theta;
+
+    bare_shift_prec = matUnconstPrec.shift;
+    matUnconstPrec.shift = bare_shift_prec - mmPP.theta;
+
+    //if (getVerbosity() >= QUDA_SUMMARIZE) {
+      printfQuda("MG solve 3:\n");
+    //}
 
     (mmPP.eigSlvr)->K(cgx, mmPP.tol, mmPP.maxiter, QUDA_SILENT, solverParam, *(mmPP.y_hat[0]), out);
 
     // Switching back the shift parameters
     matUnconst.shift = bare_shift;
+    matUnconstSlop.shift = bare_shift_slop;
+    matUnconstPrec.shift = bare_shift_prec;
     //---------------------------------------------
 
     int size_ps = mmPP.k;
