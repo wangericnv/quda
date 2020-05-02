@@ -164,7 +164,8 @@ int main(int argc, char **argv)
       dslash_type != QUDA_DOMAIN_WALL_4D_DSLASH &&
       dslash_type != QUDA_MOBIUS_DWF_DSLASH &&
       dslash_type != QUDA_TWISTED_CLOVER_DSLASH &&
-      dslash_type != QUDA_DOMAIN_WALL_DSLASH) {
+      dslash_type != QUDA_DOMAIN_WALL_DSLASH &&
+      dslash_type != QUDA_DWF_PAULI_DAGGER_DSLASH) {
     printfQuda("dslash_type %d not supported\n", dslash_type);
     exit(0);
   }
@@ -223,7 +224,7 @@ int main(int argc, char **argv)
     inv_param.Ls = (inv_param.twist_flavor == QUDA_TWIST_NONDEG_DOUBLET) ? 2 : 1;
   } else if (dslash_type == QUDA_DOMAIN_WALL_DSLASH ||
              dslash_type == QUDA_DOMAIN_WALL_4D_DSLASH ||
-	     dslash_type == QUDA_MOBIUS_DWF_DSLASH) {
+	     dslash_type == QUDA_MOBIUS_DWF_DSLASH || dslash_type == QUDA_DWF_PAULI_DAGGER_DSLASH) {
     inv_param.m5 = m5;
     kappa5 = 0.5/(5 + inv_param.m5);  
     inv_param.Ls = Lsdim;
@@ -339,7 +340,8 @@ int main(int argc, char **argv)
   // set parameters for the reference Dslash, and prepare fields to be loaded
   if (dslash_type == QUDA_DOMAIN_WALL_DSLASH ||
       dslash_type == QUDA_DOMAIN_WALL_4D_DSLASH ||
-      dslash_type == QUDA_MOBIUS_DWF_DSLASH) {
+      dslash_type == QUDA_MOBIUS_DWF_DSLASH ||
+      dslash_type == QUDA_DWF_PAULI_DAGGER_DSLASH) {
     dw_setDims(gauge_param.X, inv_param.Ls);
   } else {
     setDims(gauge_param.X);

@@ -5,18 +5,12 @@
 namespace quda {
 
   DiracDwfPauliDagger::DiracDwfPauliDagger(const DiracParam &param) :
-      DiracWilson(param, 5),
-      m5(param.m5),
-      kappa5(0.5 / (5.0 + m5)),
-      Ls(param.Ls)
+      DiracDomainWall(param)
   {
   }
 
   DiracDwfPauliDagger::DiracDwfPauliDagger(const DiracDwfPauliDagger &dirac) :
-      DiracWilson(dirac),
-      m5(dirac.m5),
-      kappa5(0.5 / (5.0 + m5)),
-      Ls(dirac.Ls)
+      DiracDomainWall(dirac)
   {
   }
 
@@ -25,9 +19,7 @@ namespace quda {
   DiracDwfPauliDagger& DiracDwfPauliDagger::operator=(const DiracDwfPauliDagger &dirac)
   {
     if (&dirac != this) {
-      DiracWilson::operator=(dirac);
-      m5 = dirac.m5;
-      kappa5 = dirac.kappa5;
+      DiracDomainWall::operator=(dirac);
     }
     return *this;
   }
@@ -48,9 +40,11 @@ namespace quda {
 
     bool reset = newTmp(&tmp1, in);
 
-    ApplyDomainWall5D(*tmp, in, *gauge, 0.0, mass, in, parity, dagger, commDim, profile);
+    ApplyDomainWall5D(*tmp1, in, *gauge, 0.0, mass, in, parity, dagger, commDim, profile);
 
-    ApplyDomainWall5D(out, *tmp, *gauge, 0.0, 1.0, in, parity, !dagger, commDim, profile);
+    ApplyDomainWall5D(out, *tmp1, *gauge, 0.0, 1.0, in, parity, !dagger, commDim, profile);
+
+    deleteTmp(&tmp1, reset);
 
     long long Ls = in.X(4);
     long long bulk = (Ls-2)*(in.Volume()/Ls);
@@ -66,8 +60,12 @@ namespace quda {
     checkParitySpinor(in, out);
     checkSpinorAlias(in, out);
 
-    Dslash(out, in, parity);
-    blas::caxpy(k, x, out);
+    bool reset = newTmp(&tmp1, in);
+
+    ApplyDomainWall5D(*tmp1, in, *gauge, 0.0, mass, x, parity, dagger, commDim, profile);
+    ApplyDomainWall5D(out, *tmp1, *gauge, k, 1.0, in, parity, !dagger, commDim, profile);
+
+    deleteTmp(&tmp1, reset);
 
     long long Ls = in.X(4);
     long long bulk = (Ls-2)*(in.Volume()/Ls);
@@ -79,9 +77,13 @@ namespace quda {
   {
     checkFullSpinor(out, in);
 
-    Dslash(out, in, parity);
+    bool reset = newTmp(&tmp1, in);
 
-    //ApplyDomainWall5D(out, in, *gauge, 0.0, mass, in, QUDA_INVALID_PARITY, dagger, commDim, profile);
+    ApplyDomainWall5D(*tmp1, in, *gauge, 0.0, mass, in, QUDA_INVALID_PARITY, dagger, commDim, profile);
+
+    ApplyDomainWall5D(out, *tmp1, *gauge, 0.0, 1.0, in, QUDA_INVALID_PARITY, !dagger, commDim, profile);
+
+    deleteTmp(&tmp1, reset);
 
     long long Ls = in.X(4);
     long long bulk = (Ls - 2) * (in.Volume() / Ls);
@@ -109,9 +111,7 @@ namespace quda {
       errorQuda("Preconditioned solution requires a preconditioned solve_type");
     }
 
-    ApplyDomainWall5D(out, in, *gauge, 0.0, 1.0, in, !dagger, commDim, profile);
-
-
+    //ApplyDomainWall5D(*src, b, *gauge, 0.0, 1.0, b, QUDA_INVALID_PARITY, !dagger, commDim, profile);
     src = &b;
     sol = &x;
   }

@@ -1597,6 +1597,10 @@ namespace quda {
       diracParam.type = pc ? QUDA_DOMAIN_WALLPC_DIRAC : QUDA_DOMAIN_WALL_DIRAC;
       diracParam.Ls = inv_param->Ls;
       break;
+    case QUDA_DWF_PAULI_DAGGER_DSLASH:
+      diracParam.type = QUDA_DWF_PAULI_DAGGER_DIRAC;
+      diracParam.Ls = inv_param->Ls;
+      break;
     case QUDA_DOMAIN_WALL_4D_DSLASH:
       diracParam.type = pc ? QUDA_DOMAIN_WALL_4DPC_DIRAC : QUDA_DOMAIN_WALL_4D_DIRAC;
       diracParam.Ls = inv_param->Ls;

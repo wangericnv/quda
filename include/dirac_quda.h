@@ -771,6 +771,8 @@ public:
        const QudaSolutionType) const;
     virtual void reconstruct(ColorSpinorField &x, const ColorSpinorField &b,
            const QudaSolutionType) const;
+
+    
   };
 
   // Full twisted mass
