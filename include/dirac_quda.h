@@ -743,6 +743,36 @@ public:
     void reconstruct(ColorSpinorField &x, const ColorSpinorField &b, const QudaSolutionType) const;
   };
 
+  // Full domain wall
+  class DiracDwfPauliDagger : public DiracDomainWall {
+
+  protected:
+    double m5;
+    double kappa5;
+    int Ls; // length of the fifth dimension
+    void checkDWF(const ColorSpinorField &out, const ColorSpinorField &in) const;
+
+public:
+    DiracDwfPauliDagger(const DiracParam &param);
+    DiracDwfPauliDagger(const DiracDwfPauliDagger &dirac);
+    virtual ~DiracDwfPauliDagger();
+    DiracDwfPauliDagger& operator=(const DiracDwfPauliDagger &dirac);
+
+    void Dslash(ColorSpinorField &out, const ColorSpinorField &in, 
+    const QudaParity parity) const;
+    void DslashXpay(ColorSpinorField &out, const ColorSpinorField &in, 
+        const QudaParity parity, const ColorSpinorField &x, const double &k) const;
+
+    virtual void M(ColorSpinorField &out, const ColorSpinorField &in) const;
+    virtual void MdagM(ColorSpinorField &out, const ColorSpinorField &in) const;
+
+    virtual void prepare(ColorSpinorField* &src, ColorSpinorField* &sol,
+       ColorSpinorField &x, ColorSpinorField &b,
+       const QudaSolutionType) const;
+    virtual void reconstruct(ColorSpinorField &x, const ColorSpinorField &b,
+           const QudaSolutionType) const;
+  };
+
   // Full twisted mass
   class DiracTwistedMass : public DiracWilson {
 

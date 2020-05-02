@@ -220,6 +220,7 @@ namespace
                                                        {"asqtad", QUDA_ASQTAD_DSLASH},
                                                        {"domain-wall", QUDA_DOMAIN_WALL_DSLASH},
                                                        {"domain-wall-4d", QUDA_DOMAIN_WALL_4D_DSLASH},
+                                                       {"dwf-pauli-dagger", QUDA_DWF_PAULI_DAGGER_DSLASH},
                                                        {"mobius", QUDA_MOBIUS_DWF_DSLASH},
                                                        {"laplace", QUDA_LAPLACE_DSLASH}};
 

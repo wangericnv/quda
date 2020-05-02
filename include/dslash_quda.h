@@ -451,6 +451,33 @@ namespace quda {
       const ColorSpinorField &x, int parity, bool dagger, const int *comm_override, TimeProfile &profile);
 
   /**
+     @brief Driver for applying the Domain-wall 5-d stencil to a
+     5-d vector with 5-d preconditioned data order
+
+     out = D_5 * in
+
+     where D_5 is the 5-d wilson linear operator with fifth dimension
+     boundary condition set by the fermion mass.
+
+     If a is non-zero, the operation is given by out = x + a * D_5 in.
+     This operator can be applied to both single parity
+     (checker-boarded) fields, or to full fields.
+
+     @param[out] out The output result field
+     @param[in] in The input field
+     @param[in] U The gauge field used for the operator
+     @param[in] a Scale factor applied (typically -kappa_5)
+     @param[in] m_f Fermion mass parameter
+     @param[in] x Vector field we accumulate onto to
+     @param[in] parity Destination parity
+     @param[in] dagger Whether this is for the dagger operator
+     @param[in] comm_override Override for which dimensions are partitioned
+     @param[in] profile The TimeProfile used for profiling the dslash
+  */
+  void ApplyDwfPauliDagger(ColorSpinorField &out, const ColorSpinorField &in, const GaugeField &U, double a, double m_f,
+      const ColorSpinorField &x, int parity, bool dagger, const int *comm_override, TimeProfile &profile);
+
+  /**
      @brief Driver for applying the batched Wilson 4-d stencil to a
      5-d vector with 4-d preconditioned data order
 
