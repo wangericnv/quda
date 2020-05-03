@@ -4,15 +4,23 @@
 
 namespace quda {
 
-  DiracDwfPauliDagger::DiracDwfPauliDagger(const DiracParam &param) :
+  DiracDwfPauliDagger::DiracDwfPauliDagger(const DiracParam &param) : 
       DiracDomainWall(param)
   {
+    dwf_op = DiracDomainWall(param);
+    DiracParam param2 = param;
+    param2.dagger = (param2.dagger == QUDA_DAG_YES) ? QUDA_DAG_NO : QUDA_DAG_YES;
+    param2.mass = 1.;
+    pv_dag_op = DiracDomainWall(param2);
   }
 
   DiracDwfPauliDagger::DiracDwfPauliDagger(const DiracDwfPauliDagger &dirac) :
-      DiracDomainWall(dirac)
+      DiracDomainWall(dirac),
+      dwf_op(dirac.dwf_op),
+      pv_dag_op(dirac.pv_dag_op)
   {
   }
+
 
   DiracDwfPauliDagger::~DiracDwfPauliDagger() { }
 
@@ -20,57 +28,43 @@ namespace quda {
   {
     if (&dirac != this) {
       DiracDomainWall::operator=(dirac);
+      dwf_op = dirac.dwf_op;
+      pv_dag_op = dirac.pv_dag_op;
     }
     return *this;
-  }
-
-  void DiracDwfPauliDagger::checkDWF(const ColorSpinorField &out, const ColorSpinorField &in) const
-  {
-    if (in.Ndim() != 5 || out.Ndim() != 5) errorQuda("Wrong number of dimensions\n");
-    if (in.X(4) != Ls) errorQuda("Expected Ls = %d, not %d\n", Ls, in.X(4));
-    if (out.X(4) != Ls) errorQuda("Expected Ls = %d, not %d\n", Ls, out.X(4));
   }
 
   void DiracDwfPauliDagger::Dslash(ColorSpinorField &out, const ColorSpinorField &in, 
 			       const QudaParity parity) const
   {
-    checkDWF(out, in);
-    checkParitySpinor(in, out);
-    checkSpinorAlias(in, out);
+    //checkDWF(out, in);
+    //checkParitySpinor(in, out);
+    //checkSpinorAlias(in, out);
 
     bool reset = newTmp(&tmp1, in);
 
-    ApplyDomainWall5D(*tmp1, in, *gauge, 0.0, mass, in, parity, dagger, commDim, profile);
-
-    ApplyDomainWall5D(out, *tmp1, *gauge, 0.0, 1.0, in, parity, !dagger, commDim, profile);
+    dwf_op.Dslash(*tmp1, in, parity);
+    pv_dag_op.Dslash(out, *tmp1, parity);
 
     deleteTmp(&tmp1, reset);
 
-    long long Ls = in.X(4);
-    long long bulk = (Ls-2)*(in.Volume()/Ls);
-    long long wall = 2*in.Volume()/Ls;
-    flops += 1320LL*(long long)in.Volume() + 96LL*bulk + 120LL*wall;
   }
 
   void DiracDwfPauliDagger::DslashXpay(ColorSpinorField &out, const ColorSpinorField &in, 
 				   const QudaParity parity, const ColorSpinorField &x,
 				   const double &k) const
   {
-    checkDWF(out, in);
-    checkParitySpinor(in, out);
-    checkSpinorAlias(in, out);
+    //checkDWF(out, in);
+    //checkParitySpinor(in, out);
+    //checkSpinorAlias(in, out);
 
     bool reset = newTmp(&tmp1, in);
 
-    ApplyDomainWall5D(*tmp1, in, *gauge, 0.0, mass, x, parity, dagger, commDim, profile);
-    ApplyDomainWall5D(out, *tmp1, *gauge, k, 1.0, in, parity, !dagger, commDim, profile);
+    dwf_op.Dslash(*tmp1, in, parity);
+    pv_dag_op.DslashXpay(out, *tmp1, parity, in, k);
 
     deleteTmp(&tmp1, reset);
 
-    long long Ls = in.X(4);
-    long long bulk = (Ls-2)*(in.Volume()/Ls);
-    long long wall = 2*in.Volume()/Ls;
-    flops += (1320LL+48LL)*(long long)in.Volume() + 96LL*bulk + 120LL*wall;
   }
 
   void DiracDwfPauliDagger::M(ColorSpinorField &out, const ColorSpinorField &in) const
@@ -79,16 +73,11 @@ namespace quda {
 
     bool reset = newTmp(&tmp1, in);
 
-    ApplyDomainWall5D(*tmp1, in, *gauge, 0.0, mass, in, QUDA_INVALID_PARITY, dagger, commDim, profile);
-
-    ApplyDomainWall5D(out, *tmp1, *gauge, 0.0, 1.0, in, QUDA_INVALID_PARITY, !dagger, commDim, profile);
+    dwf_op.M(*tmp1, in);
+    pv_dag_op.Mdag(out, *tmp1);
 
     deleteTmp(&tmp1, reset);
 
-    long long Ls = in.X(4);
-    long long bulk = (Ls - 2) * (in.Volume() / Ls);
-    long long wall = 2 * in.Volume() / Ls;
-    flops += (1320LL + 48LL) * (long long)in.Volume() + 96LL * bulk + 120LL * wall;
   }
 
   void DiracDwfPauliDagger::MdagM(ColorSpinorField &out, const ColorSpinorField &in) const
@@ -111,8 +100,7 @@ namespace quda {
       errorQuda("Preconditioned solution requires a preconditioned solve_type");
     }
 
-    //ApplyDomainWall5D(*src, b, *gauge, 0.0, 1.0, b, QUDA_INVALID_PARITY, !dagger, commDim, profile);
-    src = &b;
+    pv_dag_op.Dslash(*src, b, QUDA_INVALID_PARITY);
     sol = &x;
   }
 

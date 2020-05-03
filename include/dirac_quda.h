@@ -745,12 +745,10 @@ public:
 
   // Full domain wall
   class DiracDwfPauliDagger : public DiracDomainWall {
+protected:
 
-  protected:
-    double m5;
-    double kappa5;
-    int Ls; // length of the fifth dimension
-    void checkDWF(const ColorSpinorField &out, const ColorSpinorField &in) const;
+  DiracDomainWall dwf_op;
+  DiracDomainWall pv_dag_op;
 
 public:
     DiracDwfPauliDagger(const DiracParam &param);
@@ -772,7 +770,7 @@ public:
     virtual void reconstruct(ColorSpinorField &x, const ColorSpinorField &b,
            const QudaSolutionType) const;
 
-    
+
   };
 
   // Full twisted mass
