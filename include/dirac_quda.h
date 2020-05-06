@@ -235,14 +235,14 @@ namespace quda {
     virtual double Mu() const { return 0.; }
 
     /**
-       @brief accessor for mu factoo for MG/ -- override can return a better value
+       @brief accessor for mu factor for MG/ -- override can return a better value
     */
     virtual double MuFactor() const { return 0.; }
 
     /**
         @brief  returns and then zeroes flopcount
     */
-    unsigned long long Flops() const { unsigned long long rtn = flops; flops = 0; return rtn; }
+    virtual unsigned long long Flops() const { unsigned long long rtn = flops; flops = 0; return rtn; }
 
     /**
        @brief returns preconditioning type
@@ -340,8 +340,6 @@ namespace quda {
 
   // Even-odd preconditioned Wilson
   class DiracWilsonPC : public DiracWilson {
-
-  private:
 
   public:
     DiracWilsonPC(const DiracParam &param);
@@ -581,7 +579,7 @@ namespace quda {
     int Ls; // length of the fifth dimension
     void checkDWF(const ColorSpinorField &out, const ColorSpinorField &in) const;
 
-public:
+  public:
     DiracDomainWall(const DiracParam &param);
     DiracDomainWall(const DiracDomainWall &dirac);
     virtual ~DiracDomainWall();
@@ -605,8 +603,6 @@ public:
   // 5d Even-odd preconditioned domain wall
   class DiracDomainWallPC : public DiracDomainWall {
 
-  private:
-
   public:
     DiracDomainWallPC(const DiracParam &param);
     DiracDomainWallPC(const DiracDomainWallPC &dirac);
@@ -627,8 +623,7 @@ public:
   class DiracDomainWall4D : public DiracDomainWall
   {
 
-private:
-public:
+  public:
     DiracDomainWall4D(const DiracParam &param);
     DiracDomainWall4D(const DiracDomainWall4D &dirac);
     virtual ~DiracDomainWall4D();
@@ -653,8 +648,7 @@ public:
   class DiracDomainWall4DPC : public DiracDomainWall4D
   {
 
-private:
-public:
+  public:
     DiracDomainWall4DPC(const DiracParam &param);
     DiracDomainWall4DPC(const DiracDomainWall4DPC &dirac);
     virtual ~DiracDomainWall4DPC();
@@ -720,10 +714,6 @@ public:
   // 4d Even-odd preconditioned Mobius domain wall
   class DiracMobiusPC : public DiracMobius {
 
-  protected:
-
-  private:
-
   public:
     DiracMobiusPC(const DiracParam &param);
     DiracMobiusPC(const DiracMobiusPC &dirac);
@@ -743,34 +733,33 @@ public:
     void reconstruct(ColorSpinorField &x, const ColorSpinorField &b, const QudaSolutionType) const;
   };
 
-  // Full domain wall
+  // MG operator used for full domain wall
   class DiracDwfPauliDagger : public DiracDomainWall {
-protected:
 
-  DiracDomainWall dwf_op;
-  DiracDomainWall pv_dag_op;
+  protected:
+    DiracDomainWall dwf_op;
+    DiracDomainWall pv_dag_op;
 
-public:
+  public:
     DiracDwfPauliDagger(const DiracParam &param);
     DiracDwfPauliDagger(const DiracDwfPauliDagger &dirac);
     virtual ~DiracDwfPauliDagger();
     DiracDwfPauliDagger& operator=(const DiracDwfPauliDagger &dirac);
 
     void Dslash(ColorSpinorField &out, const ColorSpinorField &in, 
-    const QudaParity parity) const;
+                const QudaParity parity) const;
     void DslashXpay(ColorSpinorField &out, const ColorSpinorField &in, 
-        const QudaParity parity, const ColorSpinorField &x, const double &k) const;
+                    const QudaParity parity, const ColorSpinorField &x, const double &k) const;
 
     virtual void M(ColorSpinorField &out, const ColorSpinorField &in) const;
     virtual void MdagM(ColorSpinorField &out, const ColorSpinorField &in) const;
 
     virtual void prepare(ColorSpinorField* &src, ColorSpinorField* &sol,
-       ColorSpinorField &x, ColorSpinorField &b,
-       const QudaSolutionType) const;
+                         ColorSpinorField &x, ColorSpinorField &b,
+                         const QudaSolutionType) const;
     virtual void reconstruct(ColorSpinorField &x, const ColorSpinorField &b,
-           const QudaSolutionType) const;
-
-
+                             const QudaSolutionType) const;
+    unsigned long long Flops() const { return dwf_op.Flops() + pv_dag_op.Flops(); }
   };
 
   // Full twisted mass
@@ -936,7 +925,7 @@ public:
 
     mutable bool reverse; /** swap the order of the derivative D and the diagonal inverse A^{-1} */
 
-public:
+  public:
     DiracTwistedCloverPC(const DiracTwistedCloverPC &dirac);
     DiracTwistedCloverPC(const DiracParam &param, const int nDim);
 

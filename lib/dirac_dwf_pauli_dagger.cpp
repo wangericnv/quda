@@ -5,22 +5,20 @@
 namespace quda {
 
   DiracDwfPauliDagger::DiracDwfPauliDagger(const DiracParam &param) : 
-      DiracDomainWall(param)
+    DiracDomainWall(param),
+    dwf_op(param),
+    pv_dag_op(param)
   {
-    dwf_op = DiracDomainWall(param);
-    DiracParam param2 = param;
-    param2.dagger = (param2.dagger == QUDA_DAG_YES) ? QUDA_DAG_NO : QUDA_DAG_YES;
-    param2.mass = 1.;
-    pv_dag_op = DiracDomainWall(param2);
+    pv_dag_op.setMass(1.0);
+    pv_dag_op.flipDagger();
   }
 
   DiracDwfPauliDagger::DiracDwfPauliDagger(const DiracDwfPauliDagger &dirac) :
-      DiracDomainWall(dirac),
-      dwf_op(dirac.dwf_op),
-      pv_dag_op(dirac.pv_dag_op)
+    DiracDomainWall(dirac),
+    dwf_op(dirac.dwf_op),
+    pv_dag_op(dirac.pv_dag_op)
   {
   }
-
 
   DiracDwfPauliDagger::~DiracDwfPauliDagger() { }
 
@@ -35,36 +33,26 @@ namespace quda {
   }
 
   void DiracDwfPauliDagger::Dslash(ColorSpinorField &out, const ColorSpinorField &in, 
-			       const QudaParity parity) const
+                                   const QudaParity parity) const
   {
-    //checkDWF(out, in);
-    //checkParitySpinor(in, out);
-    //checkSpinorAlias(in, out);
-
     bool reset = newTmp(&tmp1, in);
 
     dwf_op.Dslash(*tmp1, in, parity);
     pv_dag_op.Dslash(out, *tmp1, parity);
 
     deleteTmp(&tmp1, reset);
-
   }
 
   void DiracDwfPauliDagger::DslashXpay(ColorSpinorField &out, const ColorSpinorField &in, 
-				   const QudaParity parity, const ColorSpinorField &x,
-				   const double &k) const
+                                       const QudaParity parity, const ColorSpinorField &x,
+                                       const double &k) const
   {
-    //checkDWF(out, in);
-    //checkParitySpinor(in, out);
-    //checkSpinorAlias(in, out);
-
     bool reset = newTmp(&tmp1, in);
 
     dwf_op.Dslash(*tmp1, in, parity);
     pv_dag_op.DslashXpay(out, *tmp1, parity, in, k);
 
     deleteTmp(&tmp1, reset);
-
   }
 
   void DiracDwfPauliDagger::M(ColorSpinorField &out, const ColorSpinorField &in) const
@@ -77,7 +65,6 @@ namespace quda {
     pv_dag_op.Mdag(out, *tmp1);
 
     deleteTmp(&tmp1, reset);
-
   }
 
   void DiracDwfPauliDagger::MdagM(ColorSpinorField &out, const ColorSpinorField &in) const
@@ -109,6 +96,5 @@ namespace quda {
   {
     // do nothing
   }
-
 
 } // namespace quda
