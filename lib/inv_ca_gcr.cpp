@@ -2,6 +2,29 @@
 #include <blas_quda.h>
 #include <Eigen/Dense>
 
+
+#ifndef PUSH_RANGE
+#include "nvtx3/nvToolsExt.h"
+
+const uint32_t colors[] = { 0xff00ff00, 0xff0000ff, 0xffffff00, 0xffff00ff, 0xff00ffff, 0xffff0000, 0xffffffff };
+const int num_colors = sizeof(colors)/sizeof(uint32_t);
+
+#define PUSH_RANGE(name,cid) { \
+    int color_id = cid; \
+    color_id = color_id%num_colors;\
+    nvtxEventAttributes_t eventAttrib = {0}; \
+    eventAttrib.version = NVTX_VERSION; \
+    eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE; \
+    eventAttrib.colorType = NVTX_COLOR_ARGB; \
+    eventAttrib.color = colors[color_id]; \
+    eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII; \
+    eventAttrib.message.ascii = name; \
+    nvtxRangePushEx(&eventAttrib); \
+}
+#define POP_RANGE nvtxRangePop();
+#endif
+
+
 namespace quda {
 
   CAGCR::CAGCR(const DiracMatrix &mat, const DiracMatrix &matSloppy, const DiracMatrix &matPrecon, SolverParam &param,
@@ -177,6 +200,8 @@ namespace quda {
       if (param.use_init_guess == QUDA_USE_INIT_GUESS_NO) blas::zero(x);
       return;
     }
+
+    PUSH_RANGE("CA-GCR Solve",1)
 
     create(b);
 
@@ -409,6 +434,8 @@ namespace quda {
     }
 
     PrintSummary("CA-GCR", total_iter, r2, b2, stop, param.tol_hq);
+
+    POP_RANGE
   }
 
 } // namespace quda
