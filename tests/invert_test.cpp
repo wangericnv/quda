@@ -576,6 +576,8 @@ int main(int argc, char **argv)
 	mdw_mat(spinorCheck, gauge, spinorOut, kappa_b, kappa_c, inv_param.dagger, inv_param.cpu_prec, gauge_param, inv_param.mass, inv_param.b_5, inv_param.c_5);
 	free(kappa_b);
 	free(kappa_c);
+      } else if (dslash_type == QUDA_DWF_PAULI_DAGGER_DSLASH) {
+        warningQuda("FIXME: Need to add DWF_PAULI_DAGGER_DSLASH CPU verify.");
       } else {
         errorQuda("Unsupported dslash_type");
       }

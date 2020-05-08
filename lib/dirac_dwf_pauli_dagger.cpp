@@ -62,7 +62,7 @@ namespace quda {
     bool reset = newTmp(&tmp1, in);
 
     dwf_op.M(*tmp1, in);
-    pv_dag_op.Mdag(out, *tmp1);
+    pv_dag_op.M(out, *tmp1); // pv_dag_op has the dagger baked in
 
     deleteTmp(&tmp1, reset);
   }
@@ -87,7 +87,7 @@ namespace quda {
       errorQuda("Preconditioned solution requires a preconditioned solve_type");
     }
 
-    pv_dag_op.Dslash(*src, b, QUDA_INVALID_PARITY);
+    src = &b; // WAR for now, should be:  pv_dag_op.M(*src, b);
     sol = &x;
   }
 

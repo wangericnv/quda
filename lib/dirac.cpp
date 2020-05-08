@@ -289,6 +289,9 @@ namespace quda {
       case QUDA_GAUGE_LAPLACEPC_DIRAC:
         steps = 2;
         break;
+      case QUDA_DWF_PAULI_DAGGER_DIRAC:
+        steps = 4; // for D_{eo} and D_{oe} in dwf, pauli dagger
+        break;
 	  default:
 	    errorQuda("Unsupported Dslash type %d.\n", type);
         steps = 0;
